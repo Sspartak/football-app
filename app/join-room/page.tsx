@@ -28,7 +28,7 @@ export default function JoinRoomPage() {
         approved: false
       })
 
-      if (insertError) throw new Error('Группа не найдена или вы уже подали заявку')
+      if (insertError) throw new Error('Команда не найдена или вы уже подали заявку')
       router.push('/dashboard')
     } catch (err: any) {
       setError(err.message)
@@ -40,7 +40,7 @@ export default function JoinRoomPage() {
     <div className="p-6 max-w-md mx-auto min-h-screen flex flex-col justify-center text-black">
       <div className="bg-white p-8 rounded-[3rem] shadow-2xl shadow-gray-200 border border-gray-100">
         <h1 className="text-3xl font-black mb-2 text-center italic tracking-tighter uppercase">Вступить</h1>
-        <p className="text-[10px] text-gray-400 mb-8 text-center uppercase font-bold tracking-widest underline decoration-green-500 underline-offset-4">Введите UUID группы</p>
+        <p className="text-[10px] text-gray-400 mb-8 text-center uppercase font-bold tracking-widest underline decoration-green-500 underline-offset-4">Введите ID команды</p>
         
         <input
           type="text"
@@ -61,7 +61,7 @@ export default function JoinRoomPage() {
         {error && <p className="text-red-500 mt-6 text-[10px] font-black uppercase text-center tracking-tighter">{error}</p>}
         
         <button onClick={() => router.push('/dashboard')} className="w-full mt-8 text-gray-300 text-[9px] font-black uppercase tracking-widest hover:text-black transition-colors italic">
-          Вернуться на базу
+          Вернуться на трансферный рынок
         </button>
       </div>
     </div>

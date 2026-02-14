@@ -51,7 +51,7 @@ export default function DashboardPage() {
   }, [])
 
   const deleteRoom = async (roomId: string) => {
-    if (window.confirm('Вы точно хотите удалить группу? Все данные участников исчезнут.')) {
+    if (window.confirm('Вы точно хотите удалить команду? Все данные участников исчезнут.')) {
       const { error } = await supabase.from('rooms').delete().eq('id', roomId)
       if (error) alert(error.message)
       else fetchData()
@@ -89,7 +89,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex gap-4">
              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-               👥 В ГРУППЕ: <span className="text-black font-black">{approvedCount}</span>
+               👥 В КОМАНДЕ: <span className="text-black font-black">{approvedCount}</span>
              </span>
              {isAdmin && pendingCount > 0 && (
                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest bg-orange-50 px-2 rounded-full italic animate-bounce">
@@ -104,7 +104,7 @@ export default function DashboardPage() {
             onClick={() => router.push(`/room/${room.id}`)}
             className="bg-black text-white px-7 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-gray-200"
           >
-            Войти
+            Пойти на тренировку
           </button>
           {isAdmin && (
             <button 
@@ -149,26 +149,26 @@ export default function DashboardPage() {
             onClick={() => router.push('/create-room')} 
             className="bg-blue-600 text-white p-6 rounded-[2.5rem] font-black uppercase text-[11px] tracking-[0.2em] shadow-xl shadow-blue-100 active:scale-95 transition-all hover:bg-blue-700"
           >
-            Создать группу
+            Создать команду
           </button>
           <button 
             onClick={() => router.push('/join-room')} 
             className="bg-white border-2 border-gray-100 p-6 rounded-[2.5rem] font-black uppercase text-[11px] tracking-[0.2em] text-gray-400 hover:border-black hover:text-black transition-all shadow-sm active:scale-95"
           >
-            Вступить
+            Найти команду
           </button>
         </div>
 
         {/* ADMIN SECTION */}
         <section className="mb-12">
           <h2 className="text-[10px] font-black text-gray-300 mb-6 uppercase tracking-[0.4em] ml-4 italic underline decoration-blue-500 underline-offset-8 decoration-2">
-            Администрирование
+            Ваши команды
           </h2>
           {adminRooms.length > 0 ? (
             adminRooms.map(r => <GroupCard key={r.id} room={r} isAdmin={true} />)
           ) : (
             <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-[10px] font-black uppercase text-gray-200 tracking-widest">
-              У вас нет созданных групп
+              У вас нет созданных команд
             </div>
           )}
         </section>
@@ -176,13 +176,13 @@ export default function DashboardPage() {
         {/* PLAYER SECTION */}
         <section className="pb-10">
           <h2 className="text-[10px] font-black text-gray-300 mb-6 uppercase tracking-[0.4em] ml-4 italic">
-            Группы в которых вы состоите
+            Команды в которых вы состоите
           </h2>
           {playerRooms.length > 0 ? (
             playerRooms.map(r => <GroupCard key={r.id} room={r} isAdmin={false} />)
           ) : (
             <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-[10px] font-black uppercase text-gray-200 tracking-widest">
-              Вы еще не вступили в группы
+              Вы еще не вступили в команды
             </div>
           )}
         </section>
