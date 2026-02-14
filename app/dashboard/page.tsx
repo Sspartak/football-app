@@ -91,11 +91,16 @@ export default function DashboardPage() {
              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                👥 В КОМАНДЕ: <span className="text-black font-black">{approvedCount}</span>
              </span>
-             {isAdmin && pendingCount > 0 && (
-               <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest bg-orange-50 px-2 rounded-full italic animate-bounce">
-                 📩 ЗАЯВКИ: {pendingCount}
-               </span>
-             )}
+             {/* Проверяем роль пользователя в этой команде */}
+{(() => {
+  const userMember = roomMembers.find(m => m.user_id === userId);
+  const canManage = userMember?.role === 'owner' || userMember?.role === 'admin';
+  return canManage && pendingCount > 0 && (
+    <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest bg-orange-50 px-2 rounded-full italic animate-bounce">
+      📩 ЗАЯВКИ: {pendingCount}
+    </span>
+  );
+})()}
           </div>
         </div>
         

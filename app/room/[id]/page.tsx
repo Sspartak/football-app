@@ -53,14 +53,14 @@ export default function RoomPage() {
                 .select('id, first_name, last_name')
 
             const enrichedMembers = membersData?.map(m => {
-    const u = usersData?.find(user => user.id === m.user_id)
-    return { 
-        ...m, 
-        first_name: u?.first_name || '—', 
-        last_name: u?.last_name || '—',
-        role: m.role // ЯВНО ДОБАВЛЯЕМ role
-    }
-}) || []
+                const u = usersData?.find(user => user.id === m.user_id)
+                return {
+                    ...m,
+                    first_name: u?.first_name || '—',
+                    last_name: u?.last_name || '—',
+                    role: m.role
+                }
+            }) || []
 
             const { data: matchData } = await supabase
                 .from('matches')
@@ -191,18 +191,13 @@ export default function RoomPage() {
         }
     }, [roomId])
 
-    // --- НОВЫЕ ПРОВЕРКИ РОЛЕЙ ---
+    // --- ПРОВЕРКИ РОЛЕЙ ---
     const currentMember = members.find(m => m.user_id === userId);
-    const currentUserRole = currentMember?.role; // 'owner', 'admin', 'player', 'pending'
+    const currentUserRole = currentMember?.role;
 
-    // Проверки прав
     const canManageRoom = currentUserRole === 'owner' || currentUserRole === 'admin';
-    const canManageRoles = currentUserRole === 'owner'; // только владелец может назначать роли
     const canVote = currentUserRole === 'owner' || currentUserRole === 'admin' || currentUserRole === 'player';
-    const isApproved = currentUserRole !== 'pending'; // все, кроме pending - подтверждены
-
-    // Для обратной совместимости (если где-то еще используется isAdmin)
-    const isAdmin = canManageRoom;
+    const isApproved = currentUserRole !== 'pending';
 
     // Фильтры для списков
     const approvedMembers = members.filter(m => m.role !== 'pending');
@@ -211,10 +206,9 @@ export default function RoomPage() {
     const reservePlayers = slots.filter(s => s.status === 'reserve')
     const notGoPlayers = slots.filter(s => s.status === 'not_go')
 
-    // --- УПРАВЛЕНИЕ УЧАСТНИКАМИ (обновлено) ---
+    // --- УПРАВЛЕНИЕ УЧАСТНИКАМИ ---
     const handleApproveMember = async (memberId: string) => {
         if (!canManageRoom) return;
-
         await supabase
             .from('room_members')
             .update({ approved: true, role: 'player' })
@@ -231,63 +225,56 @@ export default function RoomPage() {
     }
 
     const handleMakeAdmin = async (memberUserId: string) => {
-    if (!canManageRoles) {
-        alert('Только владелец может назначать администраторов');
-        return;
-    }
-    if (!window.confirm('Назначить этого участника администратором?')) return;
-
-    try {
-        console.log('Пытаемся назначить админом userId:', memberUserId);
-        console.log('roomId:', roomId);
-        
-        const { data, error: updateError } = await supabase
-            .from('room_members')
-            .update({ role: 'admin' })
-            .eq('user_id', memberUserId)
-            .eq('room_id', roomId)
-            .select(); // Добавляем .select() чтобы увидеть, что обновилось
-
-        console.log('Ответ от Supabase:', { data, updateError });
-
-        if (updateError) {
-            console.error('Детали ошибки:', JSON.stringify(updateError, null, 2));
-            alert('Не удалось назначить администратора. Проверьте консоль для деталей.');
-        } else {
-            console.log('Успешно обновлено:', data);
-            await fetchData();
+        if (!canManageRoom) {
+            alert('У вас нет прав для этого действия');
+            return;
         }
-    } catch (err) {
-        console.error('Непредвиденная ошибка:', err);
-        alert('Произошла непредвиденная ошибка');
-    }
-};
+        if (!window.confirm('Назначить этого участника администратором?')) return;
+
+        try {
+            const { error: updateError } = await supabase
+                .from('room_members')
+                .update({ role: 'admin' })
+                .eq('user_id', memberUserId)
+                .eq('room_id', roomId);
+
+            if (updateError) {
+                console.error('Ошибка при назначении админа:', updateError);
+                alert('Не удалось назначить администратора');
+            } else {
+                await fetchData();
+            }
+        } catch (err) {
+            console.error('Непредвиденная ошибка:', err);
+            alert('Произошла непредвиденная ошибка');
+        }
+    };
 
     const handleRemoveAdmin = async (memberUserId: string) => {
-    if (!canManageRoles) {
-        alert('Только владелец может снимать администраторов');
-        return;
-    }
-    if (!window.confirm('Снять с участника права администратора?')) return;
-
-    try {
-        const { error: updateError } = await supabase
-            .from('room_members')
-            .update({ role: 'player' })
-            .eq('user_id', memberUserId)
-            .eq('room_id', roomId);
-
-        if (updateError) {
-            console.error('Ошибка при снятии админа:', updateError);
-            alert('Не удалось снять права администратора');
-        } else {
-            await fetchData();
+        if (!canManageRoom) {
+            alert('У вас нет прав для этого действия');
+            return;
         }
-    } catch (err) {
-        console.error('Непредвиденная ошибка:', err);
-        alert('Произошла непредвиденная ошибка');
-    }
-};
+        if (!window.confirm('Снять с участника права администратора?')) return;
+
+        try {
+            const { error: updateError } = await supabase
+                .from('room_members')
+                .update({ role: 'player' })
+                .eq('user_id', memberUserId)
+                .eq('room_id', roomId);
+
+            if (updateError) {
+                console.error('Ошибка при снятии админа:', updateError);
+                alert('Не удалось снять права администратора');
+            } else {
+                await fetchData();
+            }
+        } catch (err) {
+            console.error('Непредвиденная ошибка:', err);
+            alert('Произошла непредвиденная ошибка');
+        }
+    };
 
     // --- ЛОГИКА ГОЛОСОВАНИЯ ---
     const handleVote = async (status: 'go' | 'reserve' | 'not_go') => {
@@ -493,28 +480,14 @@ export default function RoomPage() {
                         </h1>
                     )}
                     <div className="flex items-center gap-4">
+                        {/* Полный ID команды - кликабельный */}
                         <button
-                            onClick={() => { navigator.clipboard.writeText(roomId as string); alert('ID скопирован') }}
-                            className="text-[8px] font-black uppercase text-gray-300"
+                            onClick={() => { navigator.clipboard.writeText(roomId as string); alert('ID команды скопирован') }}
+                            className="text-[10px] font-black uppercase text-gray-400 hover:text-blue-600 transition-colors font-mono"
+                            title="Нажмите, чтобы скопировать"
                         >
-                            ID: {roomId?.toString().slice(0, 8)}...
+                            🆔 {roomId}
                         </button>
-
-                        <button
-                            onClick={() => setShowMembersList(true)}
-                            className="text-[9px] font-black uppercase text-gray-400 hover:text-blue-600 transition-colors"
-                        >
-                            👥 {approvedMembers.length}
-                        </button>
-
-                        {canManageRoom && pendingMembers.length > 0 && (
-                            <button
-                                onClick={() => setShowPendingList(true)}
-                                className="text-[9px] font-black uppercase text-yellow-500 hover:text-yellow-600 transition-colors"
-                            >
-                                ⏳ {pendingMembers.length}
-                            </button>
-                        )}
                     </div>
                 </div>
                 <button
@@ -527,34 +500,63 @@ export default function RoomPage() {
 
             <main className="flex-1 flex flex-col md:flex-row overflow-hidden bg-gray-100 p-4 gap-4">
                 <div className="md:w-[40%] flex flex-col gap-4 overflow-y-auto custom-scroll pr-1">
+                    {/* Карточка с составом на игру */}
                     <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100 flex flex-col min-h-fit">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">⚽ Состав</h2>
-                            {canManageRoom && (
-                                <div className="flex gap-3">
-                                    {match && <button onClick={deleteMatch} className="text-[9px] font-black text-red-500 uppercase">Удалить</button>}
-                                    <button onClick={() => setShowMatchForm(true)} className="text-[9px] font-black text-blue-500 uppercase">{match ? 'Изменить' : 'Создать'}</button>
-                                </div>
-                            )}
-                            {/* Кнопка выхода из команды (не для владельца) */}
-                            {currentMember && currentUserRole !== 'owner' && (
-                                <button
-                                    onClick={async () => {
-                                        if (window.confirm('Вы уверены, что хотите покинуть команду?')) {
-                                            await supabase
-                                                .from('room_members')
-                                                .delete()
-                                                .eq('room_id', roomId)
-                                                .eq('user_id', userId);
-                                            router.push('/dashboard');
-                                        }
-                                    }}
-                                    className="text-[10px] font-black uppercase bg-red-50 text-red-500 px-5 py-2 rounded-full hover:bg-red-500 hover:text-white transition-all ml-2"
-                                >
-                                    Выйти из состава →
-                                </button>
-                            )}
-                        </div>
+    <div className="flex gap-4">
+        {/* Кнопка "Состав" - превращаем заголовок в кнопку */}
+        <button
+            onClick={() => setShowMembersList(true)}
+            className="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-blue-600 transition-colors"
+        >
+            ⚽ Состав
+        </button>
+
+        {/* Кнопка "Заявки" - для владельцев и админов */}
+        {canManageRoom && (
+            <button
+                onClick={() => setShowPendingList(true)}
+                className="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-orange-500 transition-colors relative"
+            >
+                📩 Заявки
+                {pendingMembers.length > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-black">
+                        {pendingMembers.length}
+                    </span>
+                )}
+            </button>
+        )}
+
+        {/* Кнопка "Выйти из состава" - для всех, кроме владельца */}
+        {currentUserRole !== 'owner' && (
+            <button
+                onClick={async () => {
+                    if (window.confirm('Вы уверены, что хотите покинуть команду?')) {
+                        await supabase
+                            .from('room_members')
+                            .delete()
+                            .eq('room_id', roomId)
+                            .eq('user_id', userId);
+                        router.push('/dashboard');
+                    }
+                }}
+                className="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors"
+            >
+                🚪 Выйти из состава
+            </button>
+        )}
+    </div>
+
+    {/* Кнопка "Создать игру" - переименованная и перенесенная справа */}
+    {canManageRoom && (
+        <button
+            onClick={() => setShowMatchForm(true)}
+            className="text-xs font-black uppercase tracking-widest text-blue-500 hover:text-blue-700 transition-colors"
+        >
+            ⚡ Создать игру
+        </button>
+    )}
+</div>
 
                         {canManageRoom && match && (
                             <button
@@ -709,6 +711,7 @@ export default function RoomPage() {
                     </div>
                 </div>
 
+                {/* ЧАТ */}
                 <div className="md:w-[60%] bg-white rounded-[2.5rem] flex flex-col shadow-sm border border-gray-100 overflow-hidden h-full relative">
                     <div className="px-8 py-5 border-b shrink-0 flex justify-between items-center">
                         <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">💬 Чат раздевалки</h2>
@@ -777,32 +780,8 @@ export default function RoomPage() {
                                                 </button>
                                             )}
 
-                                            {/* Кнопка назначения владельцем (только для текущего владельца) */}
-                                            {canManageRoles && member.role !== 'owner' && (
-                                                <button
-                                                    onClick={async () => {
-                                                        if (!window.confirm(`Назначить ${member.nickname || 'пользователя'} новым владельцем? Вы потеряете права владельца.`)) return;
-                                                        // Обновляем роль текущего пользователя на 'admin'
-                                                        await supabase
-                                                            .from('room_members')
-                                                            .update({ role: 'admin' })
-                                                            .eq('room_id', roomId)
-                                                            .eq('user_id', userId);
-                                                        // Обновляем роль выбранного пользователя на 'owner'
-                                                        await supabase
-                                                            .from('room_members')
-                                                            .update({ role: 'owner' })
-                                                            .eq('room_id', roomId)
-                                                            .eq('user_id', member.user_id);
-                                                        fetchData(); // Перезагружаем данные
-                                                    }}
-                                                    className="bg-purple-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
-                                                >
-                                                    Сделать владельцем
-                                                </button>
-                                            )}
-
-                                            {canManageRoles && member.role !== 'owner' && (
+                                            {/* Админ может управлять админами, но не владельцем */}
+                                            {canManageRoom && member.role !== 'owner' && (
                                                 <>
                                                     {member.role === 'admin' ? (
                                                         <button
@@ -822,12 +801,15 @@ export default function RoomPage() {
                                                 </>
                                             )}
 
-                                            <button
-                                                onClick={() => handleRemoveMember(member.id)}
-                                                className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
-                                            >
-                                                Удалить
-                                            </button>
+                                            {/* Удалить можно всех, кроме владельца */}
+                                            {member.role !== 'owner' && (
+                                                <button
+                                                    onClick={() => handleRemoveMember(member.id)}
+                                                    className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                >
+                                                    Удалить
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -839,39 +821,39 @@ export default function RoomPage() {
 
             {/* МОДАЛКА ОЖИДАЮЩИХ ПОДТВЕРЖДЕНИЯ */}
             {showPendingList && canManageRoom && (
-                                        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                                            <div className="bg-white rounded-[3.5rem] p-8 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-2xl scale-in not-italic">
-                                                <div className="flex justify-between items-center mb-6">
-                                                    <h2 className="text-2xl font-black uppercase tracking-tighter text-yellow-500">Ожидают ({pendingMembers.length})</h2>
-                                                    <button onClick={() => setShowPendingList(false)} className="text-gray-400 hover:text-black text-xl font-black">✕</button>
-                                                </div>
-                                                <div className="space-y-3">
-                                                    {pendingMembers.map((member) => (
-                                                        <div key={member.id} className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between">
-                                                            <div>
-                                                                <p className="font-black text-sm">{member.nickname || '—'}</p>
-                                                                <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
-                                                            </div>
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={() => handleApproveMember(member.id)}
-                                                                    className="bg-green-500 text-white px-6 py-3 rounded-xl text-[9px] font-black uppercase"
-                                                                >
-                                                                    Подтвердить
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleRemoveMember(member.id)}
-                                                                    className="bg-red-500 text-white px-6 py-3 rounded-xl text-[9px] font-black uppercase"
-                                                                >
-                                                                    Удалить
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[3.5rem] p-8 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-2xl scale-in not-italic">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-black uppercase tracking-tighter text-yellow-500">Ожидают ({pendingMembers.length})</h2>
+                            <button onClick={() => setShowPendingList(false)} className="text-gray-400 hover:text-black text-xl font-black">✕</button>
+                        </div>
+                        <div className="space-y-3">
+                            {pendingMembers.map((member) => (
+                                <div key={member.id} className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between">
+                                    <div>
+                                        <p className="font-black text-sm">{member.nickname || '—'}</p>
+                                        <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleApproveMember(member.id)}
+                                            className="bg-green-500 text-white px-6 py-3 rounded-xl text-[9px] font-black uppercase"
+                                        >
+                                            Подтвердить
+                                        </button>
+                                        <button
+                                            onClick={() => handleRemoveMember(member.id)}
+                                            className="bg-red-500 text-white px-6 py-3 rounded-xl text-[9px] font-black uppercase"
+                                        >
+                                            Удалить
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* МОДАЛКА СОЗДАНИЯ/РЕДАКТИРОВАНИЯ МАТЧА */}
             {showMatchForm && (

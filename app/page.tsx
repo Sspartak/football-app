@@ -74,9 +74,9 @@ export default function HomePage() {
         ) : (
           /* Контент для гостя */
           <div className="text-center">
-            <h1 className="text-3xl font-black mb-2 uppercase tracking-tight">Game Rooms</h1>
+            <h1 className="text-3xl font-black mb-2 uppercase tracking-tight">Football-hub</h1>
             <p className="text-gray-500 mb-10 text-sm leading-relaxed">
-              Создавайте приватные комнаты, приглашайте друзей по ID и играйте вместе.
+              Создавайте команды, приглашайте друзей по ID и играйте вместе.
             </p>
             
             <div className="flex flex-col gap-4">
@@ -84,7 +84,7 @@ export default function HomePage() {
                 onClick={() => router.push('/login')}
                 className="w-full bg-black text-white py-4 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95"
               >
-                Войти в игру
+                Войти в профиль
               </button>
               <button
                 onClick={() => router.push('/register')}
