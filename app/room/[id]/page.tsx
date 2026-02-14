@@ -391,28 +391,56 @@ export default function RoomPage() {
     }
 
     const saveMatch = async () => {
-        if (!canManageRoom) return;
-
-        const payload = {
-            room_id: roomId,
-            address: matchFormData.address,
-            match_date: matchFormData.date,
-            start_time: matchFormData.start,
-            end_time: matchFormData.end || null,
-            max_players: matchFormData.max
-        }
-
-        try {
-            if (match) {
-                await supabase.from('matches').update(payload).eq('id', match.id)
-            } else {
-                await supabase.from('matches').insert([payload])
-            }
-            setShowMatchForm(false)
-        } catch (error) {
-            console.error('Ошибка при сохранении матча:', error)
-        }
+    if (!canManageRoom) {
+        console.log('Нет прав для создания матча');
+        return;
     }
+    
+    console.log('Создаем матч с данными:', matchFormData);
+    
+    // Валидация
+    if (!matchFormData.address || !matchFormData.date || !matchFormData.start) {
+        alert('Заполните все обязательные поля');
+        return;
+    }
+    
+    const payload = {
+        room_id: roomId,
+        address: matchFormData.address,
+        match_date: matchFormData.date,
+        start_time: matchFormData.start,
+        end_time: matchFormData.end || null,
+        max_players: matchFormData.max || 10,
+        status: 'voting'
+    };
+    
+    try {
+        let result;
+        if (match) {
+            // Обновление существующего матча
+            result = await supabase
+                .from('matches')
+                .update(payload)
+                .eq('id', match.id);
+        } else {
+            // Создание нового матча
+            result = await supabase
+                .from('matches')
+                .insert([payload]);
+        }
+        
+        if (result.error) {
+            console.error('Ошибка Supabase:', result.error);
+            alert('Ошибка при сохранении: ' + result.error.message);
+        } else {
+            setShowMatchForm(false);
+            await fetchData(); // Обновляем данные
+        }
+    } catch (error) {
+        console.error('Ошибка при сохранении матча:', error);
+        alert('Произошла ошибка');
+    }
+};
 
     const deleteMatch = async () => {
         if (!canManageRoom) return;
@@ -549,18 +577,18 @@ export default function RoomPage() {
 
     {/* Кнопка "Создать игру" - переименованная и перенесенная справа */}
     {canManageRoom && (
-        <button
-            onClick={() => setShowMatchForm(true)}
-            className="text-xs font-black uppercase tracking-widest text-blue-500 hover:text-blue-700 transition-colors"
-        >
-            ⚡ Создать игру
-        </button>
-    )}
+    <button
+        onClick={() => setShowMatchForm(true)}
+        className="text-xs font-black uppercase tracking-widest text-blue-500 hover:text-blue-700 transition-colors"
+    >
+        ⚡ {match ? 'Редактировать игру' : 'Создать игру'}
+    </button>
+)}
 </div>
 
                         {canManageRoom && match && (
                             <button
-                                onClick={() => router.push(`/room/${roomId}/match`)}
+                                onClick={() => router.push(`/room/${roomId}/matches`)}
                                 className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all mb-4"
                             >
                                 ⚽ Сформировать составы
@@ -570,6 +598,22 @@ export default function RoomPage() {
                         {match ? (
                             <div className="flex flex-col gap-6">
                                 <div className="bg-blue-600 text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden shrink-0">
+                                    {/* Кнопка удаления игры - только для админов и владельцев */}
+    {canManageRoom && (
+        <button
+            onClick={async () => {
+                if (window.confirm('Удалить игру? Все голоса и составы будут потеряны.')) {
+                    await supabase.from('matches').delete().eq('id', match.id);
+                    setMatch(null);
+                    setSlots([]);
+                    setTeams([]);
+                }
+            }}
+            className="absolute top-4 right-4 text-white/60 hover:text-white text-[10px] font-black uppercase transition-colors"
+        >
+            ✕ Удалить игру
+        </button>
+    )}
                                     <p className="text-[10px] font-black uppercase opacity-60 mb-1 tracking-widest truncate">{match.address}</p>
                                     <p className="text-xl font-black uppercase mb-4">{match.match_date ? new Date(match.match_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) : '—'}</p>
                                     <div className="flex gap-6 text-sm font-bold">
@@ -738,7 +782,7 @@ export default function RoomPage() {
                                 placeholder="Сообщение..."
                                 className="flex-1 bg-gray-50 px-6 py-4 rounded-2xl text-sm font-bold outline-none border-none focus:ring-2 focus:ring-blue-100 shadow-inner"
                             />
-                            <button type="submit" className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-[11px] font-black uppercase active:scale-95 shadow-lg">Send</button>
+                            <button type="submit" className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-[11px] font-black uppercase active:scale-95 shadow-lg">Отправить</button>
                         </form>
                     ) : (
                         <div className="p-6 bg-white border-t text-center">
@@ -753,7 +797,7 @@ export default function RoomPage() {
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-[3.5rem] p-8 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-2xl scale-in not-italic">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black uppercase tracking-tighter text-blue-600">Участники ({approvedMembers.length})</h2>
+                            <h2 className="text-2xl font-black uppercase tracking-tighter text-blue-600">Штат команды ({approvedMembers.length})</h2>
                             <button onClick={() => setShowMembersList(false)} className="text-gray-400 hover:text-black text-xl font-black">✕</button>
                         </div>
                         <div className="space-y-3">

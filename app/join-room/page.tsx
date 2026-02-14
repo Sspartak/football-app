@@ -39,7 +39,7 @@ export default function JoinRoomPage() {
   return (
     <div className="p-6 max-w-md mx-auto min-h-screen flex flex-col justify-center text-black">
       <div className="bg-white p-8 rounded-[3rem] shadow-2xl shadow-gray-200 border border-gray-100">
-        <h1 className="text-3xl font-black mb-2 text-center italic tracking-tighter uppercase">Подписать контракт</h1>
+        <h1 className="text-3xl font-black mb-2 text-center italic tracking-tighter uppercase">Пройти просмотр</h1>
         <p className="text-[10px] text-gray-400 mb-8 text-center uppercase font-bold tracking-widest underline decoration-green-500 underline-offset-4">Введите ID команды</p>
         
         <input
@@ -55,7 +55,7 @@ export default function JoinRoomPage() {
           disabled={loading}
           className="w-full bg-black text-white p-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg active:scale-95 transition-all disabled:bg-gray-200"
         >
-          {loading ? 'Sending...' : 'Подать заявку'}
+          {loading ? 'Sending...' : 'Заключить игровой контракт'}
         </button>
         
         {error && <p className="text-red-500 mt-6 text-[10px] font-black uppercase text-center tracking-tighter">{error}</p>}

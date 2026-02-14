@@ -109,7 +109,7 @@ export default function DashboardPage() {
             onClick={() => router.push(`/room/${room.id}`)}
             className="bg-black text-white px-7 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-gray-200"
           >
-            Пойти на тренировку
+            Идти на тренировку
           </button>
           {isAdmin && (
             <button 

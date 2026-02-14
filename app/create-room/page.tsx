@@ -47,8 +47,8 @@ export default function CreateRoomPage() {
   return (
     <div className="p-6 max-w-md mx-auto min-h-screen flex flex-col justify-center text-black">
       <div className="bg-white p-8 rounded-[3rem] shadow-2xl shadow-blue-50 border border-gray-100">
-        <h1 className="text-3xl font-black mb-2 text-center italic tracking-tighter uppercase">Создать</h1>
-        <p className="text-[10px] text-gray-400 mb-8 text-center uppercase font-bold tracking-widest underline decoration-blue-500 underline-offset-4">Новая команда</p>
+        <h1 className="text-3xl font-black mb-2 text-center italic tracking-tighter uppercase">Создать команду</h1>
+        
         
         <form onSubmit={createRoom} className="space-y-6">
           <input
@@ -65,7 +65,7 @@ export default function CreateRoomPage() {
             disabled={loading}
             className="w-full bg-blue-600 text-white p-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-100 active:scale-95 transition-all disabled:bg-gray-200"
           >
-            {loading ? 'Creating...' : 'Создать команду'}
+            {loading ? 'Creating...' : 'Набрать состав'}
           </button>
         </form>
         
