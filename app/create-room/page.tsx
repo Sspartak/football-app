@@ -33,7 +33,8 @@ export default function CreateRoomPage() {
         user_id: user.id,
         email: user.email,
         nickname: userNick,
-        approved: true 
+        approved: true,
+        role: 'owner'
       })
 
       router.push('/dashboard')
