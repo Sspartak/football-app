@@ -53,13 +53,14 @@ export default function RoomPage() {
                 .select('id, first_name, last_name')
 
             const enrichedMembers = membersData?.map(m => {
-                const u = usersData?.find(user => user.id === m.user_id)
-                return {
-                    ...m,
-                    first_name: u?.first_name || '—',
-                    last_name: u?.last_name || '—'
-                }
-            }) || []
+    const u = usersData?.find(user => user.id === m.user_id)
+    return { 
+        ...m, 
+        first_name: u?.first_name || '—', 
+        last_name: u?.last_name || '—',
+        role: m.role // ЯВНО ДОБАВЛЯЕМ role
+    }
+}) || []
 
             const { data: matchData } = await supabase
                 .from('matches')
@@ -230,30 +231,63 @@ export default function RoomPage() {
     }
 
     const handleMakeAdmin = async (memberUserId: string) => {
-        if (!canManageRoles) {
-            alert('Только владелец может назначать администраторов');
-            return;
-        }
-        if (!window.confirm('Назначить этого участника администратором?')) return
-        await supabase
+    if (!canManageRoles) {
+        alert('Только владелец может назначать администраторов');
+        return;
+    }
+    if (!window.confirm('Назначить этого участника администратором?')) return;
+
+    try {
+        console.log('Пытаемся назначить админом userId:', memberUserId);
+        console.log('roomId:', roomId);
+        
+        const { data, error: updateError } = await supabase
             .from('room_members')
             .update({ role: 'admin' })
             .eq('user_id', memberUserId)
             .eq('room_id', roomId)
+            .select(); // Добавляем .select() чтобы увидеть, что обновилось
+
+        console.log('Ответ от Supabase:', { data, updateError });
+
+        if (updateError) {
+            console.error('Детали ошибки:', JSON.stringify(updateError, null, 2));
+            alert('Не удалось назначить администратора. Проверьте консоль для деталей.');
+        } else {
+            console.log('Успешно обновлено:', data);
+            await fetchData();
+        }
+    } catch (err) {
+        console.error('Непредвиденная ошибка:', err);
+        alert('Произошла непредвиденная ошибка');
     }
+};
 
     const handleRemoveAdmin = async (memberUserId: string) => {
-        if (!canManageRoles) {
-            alert('Только владелец может снимать администраторов');
-            return;
-        }
-        if (!window.confirm('Снять с участника права администратора?')) return
-        await supabase
+    if (!canManageRoles) {
+        alert('Только владелец может снимать администраторов');
+        return;
+    }
+    if (!window.confirm('Снять с участника права администратора?')) return;
+
+    try {
+        const { error: updateError } = await supabase
             .from('room_members')
             .update({ role: 'player' })
             .eq('user_id', memberUserId)
-            .eq('room_id', roomId)
+            .eq('room_id', roomId);
+
+        if (updateError) {
+            console.error('Ошибка при снятии админа:', updateError);
+            alert('Не удалось снять права администратора');
+        } else {
+            await fetchData();
+        }
+    } catch (err) {
+        console.error('Непредвиденная ошибка:', err);
+        alert('Произошла непредвиденная ошибка');
     }
+};
 
     // --- ЛОГИКА ГОЛОСОВАНИЯ ---
     const handleVote = async (status: 'go' | 'reserve' | 'not_go') => {
