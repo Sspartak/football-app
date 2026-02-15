@@ -21,7 +21,7 @@ interface TempTeam {
   id: string
   name: string
   players: Player[]
-  color?: { text: string, bg: string, label: string } // Обновляем тип цвета
+  color?: { text: string, bg: string, label: string }
 }
 
 export default function MatchAdminPage() {
@@ -34,28 +34,30 @@ export default function MatchAdminPage() {
   
   // Состояния для логики распределения
   const [numTeams, setNumTeams] = useState(2)
-  const [mode, setMode] = useState<'menu' | 'auto' | 'baskets' | 'edit'>('menu')
+  const [mode, setMode] = useState<'menu' | 'auto' | 'baskets' | 'manual' | 'edit'>('menu')
   const [currentBasket, setCurrentBasket] = useState<number>(0)
+  const [currentTeam, setCurrentTeam] = useState<number>(0)
   const [baskets, setBaskets] = useState<string[][]>([])
   const [teams, setTeams] = useState<TempTeam[]>([])
-  // Массив цветов для корзин
+  
+  // Массив цветов для корзин и команд
   const basketColors = [
-    'bg-blue-600',   // Корзина 1
-    'bg-green-600',  // Корзина 2
-    'bg-purple-600', // Корзина 3
-    'bg-orange-600', // Корзина 4
-    'bg-pink-600',   // Корзина 5
-    'bg-indigo-600'  // Корзина 6
+    'bg-blue-600',   // Команда/Корзина 1
+    'bg-green-600',  // Команда/Корзина 2
+    'bg-purple-600', // Команда/Корзина 3
+    'bg-orange-600', // Команда/Корзина 4
+    'bg-pink-600',   // Команда/Корзина 5
+    'bg-indigo-600'  // Команда/Корзина 6
   ]
   
   // Массив цветов для названий команд с фоновыми подложками
   const teamTitleColors = [
-    { text: 'text-white', bg: 'bg-gray-800', label: 'Белый' },      // Белый на темном фоне
-    { text: 'text-red-600', bg: 'bg-red-50', label: 'Красный' },    // Красный
-    { text: 'text-blue-600', bg: 'bg-blue-50', label: 'Синий' },     // Синий
-    { text: 'text-green-600', bg: 'bg-green-50', label: 'Зеленый' }, // Зеленый
-    { text: 'text-yellow-600', bg: 'bg-yellow-50', label: 'Желтый' },// Желтый
-    { text: 'text-black', bg: 'bg-gray-100', label: 'Черный' },      // Черный
+    { text: 'text-white', bg: 'bg-gray-800', label: 'Белый' },
+    { text: 'text-red-600', bg: 'bg-red-50', label: 'Красный' },
+    { text: 'text-blue-600', bg: 'bg-blue-50', label: 'Синий' },
+    { text: 'text-green-600', bg: 'bg-green-50', label: 'Зеленый' },
+    { text: 'text-yellow-600', bg: 'bg-yellow-50', label: 'Желтый' },
+    { text: 'text-black', bg: 'bg-gray-100', label: 'Черный' },
     { text: 'text-purple-600', bg: 'bg-purple-50', label: 'Фиолетовый' },
     { text: 'text-pink-600', bg: 'bg-pink-50', label: 'Розовый' },
     { text: 'text-indigo-600', bg: 'bg-indigo-50', label: 'Индиго' },
@@ -98,13 +100,9 @@ export default function MatchAdminPage() {
   const distributeAuto = async () => {
     if (!match || goPlayers.length === 0) return
     
-    // Перемешиваем игроков
     const shuffled = [...goPlayers].sort(() => Math.random() - 0.5)
-    
-    // Определяем реальное количество команд (не больше чем игроков)
     const actualNumTeams = Math.min(numTeams, goPlayers.length)
     
-    // Создаем команды
     const newTeams: TempTeam[] = []
     for (let i = 0; i < actualNumTeams; i++) {
       newTeams.push({
@@ -115,7 +113,6 @@ export default function MatchAdminPage() {
       })
     }
     
-    // Распределяем игроков по командам по очереди
     shuffled.forEach((player, index) => {
       const teamIndex = index % actualNumTeams
       newTeams[teamIndex].players.push(player)
@@ -127,7 +124,6 @@ export default function MatchAdminPage() {
 
   // --- ЛОГИКА КОРЗИН ---
   const startBaskets = () => {
-    // Создаем корзины по количеству команд, но не больше чем игроков
     const actualNumBaskets = Math.min(numTeams, goPlayers.length)
     setBaskets(Array.from({ length: actualNumBaskets }, () => []))
     setCurrentBasket(0)
@@ -136,17 +132,14 @@ export default function MatchAdminPage() {
 
   const togglePlayerInBasket = (playerId: string) => {
     const newBaskets = [...baskets]
-    // Проверяем, есть ли игрок уже в какой-то корзине
     for (let i = 0; i < newBaskets.length; i++) {
       if (newBaskets[i].includes(playerId)) {
-        // Если игрок уже в корзине - удаляем его
         newBaskets[i] = newBaskets[i].filter(id => id !== playerId)
         setBaskets(newBaskets)
         return
       }
     }
     
-    // Если игрока нет ни в одной корзине - добавляем в текущую
     if (!newBaskets[currentBasket].includes(playerId)) {
       newBaskets[currentBasket].push(playerId)
       setBaskets(newBaskets)
@@ -154,7 +147,6 @@ export default function MatchAdminPage() {
   }
 
   const finalizeBaskets = () => {
-    // Создаем команды только для корзин, в которых есть игроки
     const nonEmptyBaskets = baskets.filter(basket => basket.length > 0)
     
     if (nonEmptyBaskets.length === 0) {
@@ -164,11 +156,9 @@ export default function MatchAdminPage() {
     
     const newTeams: TempTeam[] = []
     
-    // Для каждой непустой корзины создаем команду
     nonEmptyBaskets.forEach((basket, basketIndex) => {
       const shuffledBasket = [...basket].sort(() => Math.random() - 0.5)
       
-      // Создаем команду для этой корзины
       const team: TempTeam = {
         id: `temp-${basketIndex}`,
         name: `Команда ${basketIndex + 1}`,
@@ -176,7 +166,6 @@ export default function MatchAdminPage() {
         color: teamTitleColors[basketIndex % teamTitleColors.length]
       }
       
-      // Добавляем всех игроков из корзины в эту команду
       shuffledBasket.forEach(playerId => {
         const player = goPlayers.find(p => p.id === playerId)
         if (player) {
@@ -191,6 +180,54 @@ export default function MatchAdminPage() {
     setMode('edit')
   }
 
+  // --- ЛОГИКА РУЧНОГО РАСПРЕДЕЛЕНИЯ ---
+  const startManual = () => {
+    const actualNumTeams = Math.min(numTeams, goPlayers.length)
+    const newTeams: TempTeam[] = []
+    for (let i = 0; i < actualNumTeams; i++) {
+      newTeams.push({
+        id: `temp-${i}`,
+        name: `Команда ${i + 1}`,
+        players: [],
+        color: teamTitleColors[i % teamTitleColors.length]
+      })
+    }
+    setTeams(newTeams)
+    setCurrentTeam(0)
+    setMode('manual')
+  }
+
+  const togglePlayerInTeam = (playerId: string) => {
+    const newTeams = [...teams]
+    
+    for (let i = 0; i < newTeams.length; i++) {
+      const playerIndex = newTeams[i].players.findIndex(p => p.id === playerId)
+      if (playerIndex !== -1) {
+        newTeams[i].players.splice(playerIndex, 1)
+        setTeams(newTeams)
+        return
+      }
+    }
+    
+    const player = goPlayers.find(p => p.id === playerId)
+    if (player) {
+      newTeams[currentTeam].players.push(player)
+      setTeams(newTeams)
+    }
+  }
+
+  const finalizeManual = () => {
+    const hasPlayers = teams.some(team => team.players.length > 0)
+    if (!hasPlayers) {
+      alert('Добавьте игроков в команды')
+      return
+    }
+    
+    const nonEmptyTeams = teams.filter(team => team.players.length > 0)
+    setTeams(nonEmptyTeams)
+    setMode('edit')
+  }
+
   // --- РЕДАКТИРОВАНИЕ КОМАНД ---
   const movePlayerToTeam = (playerId: string, fromTeamIndex: number | null, toTeamIndex: number) => {
     const newTeams = [...teams]
@@ -198,17 +235,13 @@ export default function MatchAdminPage() {
     
     if (!player) return
     
-    // Удаляем игрока из исходной команды
     if (fromTeamIndex !== null) {
       newTeams[fromTeamIndex].players = newTeams[fromTeamIndex].players.filter((p: Player) => p.id !== playerId)
     }
     
-    // Добавляем в целевую команду
     newTeams[toTeamIndex].players.push(player)
     
-    // Удаляем пустые команды
     const nonEmptyTeams = newTeams.filter(team => team.players.length > 0)
-    
     setTeams(nonEmptyTeams)
   }
 
@@ -216,9 +249,7 @@ export default function MatchAdminPage() {
     const newTeams = [...teams]
     newTeams[teamIndex].players = newTeams[teamIndex].players.filter((p: Player) => p.id !== playerId)
     
-    // Удаляем пустые команды
     const nonEmptyTeams = newTeams.filter(team => team.players.length > 0)
-    
     setTeams(nonEmptyTeams)
   }
 
@@ -239,76 +270,73 @@ export default function MatchAdminPage() {
   }
 
   // --- СОХРАНЕНИЕ В БАЗУ ---
-const saveTeams = async () => {
-  if (!match) return
-  
-  console.log('=== НАЧАЛО СОХРАНЕНИЯ ===');
-  console.log('Все команды перед сохранением:', teams);
-  
-  // Проверим каждую команду
-  teams.forEach((team, index) => {
-    console.log(`Команда ${index}:`, {
-      name: team.name,
-      color: team.color,
-      playersCount: team.players.length
-    });
-  });
-  
-  try {
-    // Удаляем старые команды
-    await supabase.from('match_teams').delete().eq('match_id', match.id)
+  const saveTeams = async () => {
+    if (!match) return
     
-    // Создаем новые команды
-    for (let i = 0; i < teams.length; i++) {
-      if (teams[i].players.length === 0) continue
+    console.log('=== НАЧАЛО СОХРАНЕНИЯ ===');
+    console.log('Все команды перед сохранением:', teams);
+    
+    teams.forEach((team, index) => {
+      console.log(`Команда ${index}:`, {
+        name: team.name,
+        color: team.color,
+        playersCount: team.players.length
+      });
+    });
+    
+    try {
+      await supabase.from('match_teams').delete().eq('match_id', match.id)
       
-      console.log(`Сохраняем команду ${i} с цветом:`, teams[i].color);
-      
-      const insertData = {
-        match_id: match.id,
-        name: teams[i].name,
-        color_json: teams[i].color
-      };
-      console.log('Данные для вставки:', insertData);
-      
-      const { data: team, error } = await supabase
-        .from('match_teams')
-        .insert(insertData)
-        .select()
-        .single()
-      
-      if (error) {
-        console.error('Ошибка при вставке команды:', error);
-      }
-      
-      if (team) {
-        console.log('Команда сохранена, полученные данные:', team);
+      for (let i = 0; i < teams.length; i++) {
+        if (teams[i].players.length === 0) continue
         
-        for (const player of teams[i].players) {
-          await supabase
-            .from('match_slots')
-            .update({ team_id: team.id })
-            .eq('id', player.id)
+        console.log(`Сохраняем команду ${i} с цветом:`, teams[i].color);
+        
+        const insertData = {
+          match_id: match.id,
+          name: teams[i].name,
+          color_json: teams[i].color
+        };
+        console.log('Данные для вставки:', insertData);
+        
+        const { data: team, error } = await supabase
+          .from('match_teams')
+          .insert(insertData)
+          .select()
+          .single()
+        
+        if (error) {
+          console.error('Ошибка при вставке команды:', error);
+        }
+        
+        if (team) {
+          console.log('Команда сохранена, полученные данные:', team);
+          
+          for (const player of teams[i].players) {
+            await supabase
+              .from('match_slots')
+              .update({ team_id: team.id })
+              .eq('id', player.id)
+          }
         }
       }
+      
+      await supabase
+        .from('matches')
+        .update({ status: 'teams_distributed' })
+        .eq('id', match.id)
+      
+      alert('Команды успешно сохранены!')
+      
+      setTimeout(() => {
+        router.push(`/room/${roomId}`)
+      }, 500)
+      
+    } catch (error) {
+      console.error('Ошибка при сохранении:', error)
+      alert('Произошла ошибка при сохранении')
     }
-    
-    await supabase
-      .from('matches')
-      .update({ status: 'teams_distributed' })
-      .eq('id', match.id)
-    
-    alert('Команды успешно сохранены!')
-    
-    setTimeout(() => {
-      router.push(`/room/${roomId}`)
-    }, 500)
-    
-  } catch (error) {
-    console.error('Ошибка при сохранении:', error)
-    alert('Произошла ошибка при сохранении')
   }
-}
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-white text-xs font-black uppercase">Загрузка...</div>
 
@@ -408,7 +436,6 @@ const saveTeams = async () => {
                   ))}
                 </div>
 
-                {/* Кнопки для добавления игроков из пула */}
                 {goPlayers.filter(p => !teams.some(t => t.players.some((tp: Player) => tp.id === p.id))).length > 0 && (
                   <div className="mt-4 pt-4 border-t border-dashed">
                     <p className="text-[8px] text-gray-400 mb-2 tracking-widest">Добавить игрока:</p>
@@ -436,7 +463,7 @@ const saveTeams = async () => {
     )
   }
 
-  // Меню выбора режима или корзины
+  // Меню выбора режима или корзины/ручное распределение
   return (
     <div className="h-screen bg-gray-50 flex flex-col font-sans italic uppercase font-black overflow-hidden">
       <header className="px-8 py-5 bg-white border-b flex justify-between items-center shrink-0">
@@ -452,19 +479,29 @@ const saveTeams = async () => {
           <div className="space-y-2">
             {goPlayers.map(p => {
               const basketIndex = baskets.findIndex(b => b.includes(p.id))
+              const teamIndex = teams.findIndex(t => t.players.some(tp => tp.id === p.id))
+              
               return (
                 <div 
                   key={p.id} 
-                  onClick={() => mode === 'baskets' && togglePlayerInBasket(p.id)}
+                  onClick={() => {
+                    if (mode === 'baskets') togglePlayerInBasket(p.id)
+                    if (mode === 'manual') togglePlayerInTeam(p.id)
+                  }}
                   className={`p-4 rounded-[1.5rem] border transition-all cursor-pointer flex justify-between items-center ${
-                    basketIndex !== -1 
-                      ? `${basketColors[basketIndex % basketColors.length]} text-white border-transparent` 
-                      : 'bg-gray-50 border-gray-100 hover:border-blue-200'
+                    mode === 'baskets' && basketIndex !== -1 
+                      ? `${basketColors[basketIndex % basketColors.length]} text-white border-transparent`
+                      : mode === 'manual' && teamIndex !== -1
+                        ? `${basketColors[teamIndex % basketColors.length]} text-white border-transparent`
+                        : 'bg-gray-50 border-gray-100 hover:border-blue-200'
                   }`}
                 >
                   <span className="text-[11px] truncate">{p.nickname}</span>
-                  {basketIndex !== -1 && (
+                  {basketIndex !== -1 && mode === 'baskets' && (
                     <span className="text-[8px] opacity-60">Корзина {basketIndex + 1}</span>
+                  )}
+                  {mode === 'manual' && teamIndex !== -1 && (
+                    <span className="text-[8px] opacity-60">Команда {teamIndex + 1}</span>
                   )}
                 </div>
               )
@@ -508,6 +545,12 @@ const saveTeams = async () => {
                 >
                   По корзинам
                 </button>
+                <button 
+                  onClick={startManual} 
+                  className="w-full bg-green-600 text-white py-5 rounded-[2rem] text-[10px] shadow-lg active:scale-95 transition-all"
+                >
+                  Вручную
+                </button>
               </div>
             </div>
           )}
@@ -515,7 +558,7 @@ const saveTeams = async () => {
           {mode === 'baskets' && (
             <div className="w-full max-w-md bg-white p-12 rounded-[3.5rem] shadow-xl text-center">
               <div className="mb-8">
-                <p className="text-[10px] text-gray-400 tracking-[0.2em] mb-2">Наполнение</p>
+                <p className="text-[10px] text-gray-400 tracking-[0.2em] mb-2">Наполнение корзин</p>
                 <h3 className="text-3xl text-blue-600">Корзина {currentBasket + 1}</h3>
                 <p className="text-[9px] text-gray-300 mt-2">
                   {baskets[currentBasket]?.length || 0} игроков
@@ -552,7 +595,6 @@ const saveTeams = async () => {
                 )}
               </div>
               
-              {/* Индикатор прогресса */}
               <div className="flex justify-center gap-2 mt-8">
                 {Array.from({ length: baskets.length }).map((_, i) => (
                   <div 
@@ -561,6 +603,63 @@ const saveTeams = async () => {
                       i === currentBasket 
                         ? 'w-6 bg-blue-600' 
                         : baskets[i]?.length > 0 
+                          ? 'w-3 bg-green-400' 
+                          : 'w-3 bg-gray-200'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {mode === 'manual' && (
+            <div className="w-full max-w-md bg-white p-12 rounded-[3.5rem] shadow-xl text-center">
+              <div className="mb-8">
+                <p className="text-[10px] text-gray-400 tracking-[0.2em] mb-2">Ручное распределение</p>
+                <h3 className="text-3xl text-blue-600">Команда {currentTeam + 1}</h3>
+                <p className="text-[9px] text-gray-300 mt-2">
+                  {teams[currentTeam]?.players.length || 0} игроков
+                </p>
+              </div>
+              <p className="text-[9px] text-gray-300 mb-10 leading-relaxed">
+                Выберите игроков слева для этой команды.<br/>
+                Затем перейдите к следующей.
+              </p>
+              
+              <div className="flex gap-3">
+                {currentTeam > 0 && (
+                  <button 
+                    onClick={() => setCurrentTeam(c => c - 1)} 
+                    className="flex-1 bg-gray-100 py-5 rounded-[2rem] text-[10px] hover:bg-gray-200 transition-all"
+                  >
+                    ← Назад
+                  </button>
+                )}
+                {currentTeam < teams.length - 1 ? (
+                  <button 
+                    onClick={() => setCurrentTeam(c => c + 1)} 
+                    className="flex-1 bg-black text-white py-5 rounded-[2rem] text-[10px] hover:bg-gray-900 transition-all"
+                  >
+                    Далее →
+                  </button>
+                ) : (
+                  <button 
+                    onClick={finalizeManual} 
+                    className="flex-1 bg-green-500 text-white py-5 rounded-[2rem] text-[10px] shadow-lg hover:bg-green-600 transition-all"
+                  >
+                    Готово
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex justify-center gap-2 mt-8">
+                {Array.from({ length: teams.length }).map((_, i) => (
+                  <div 
+                    key={i}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === currentTeam 
+                        ? 'w-6 bg-blue-600' 
+                        : teams[i]?.players.length > 0 
                           ? 'w-3 bg-green-400' 
                           : 'w-3 bg-gray-200'
                     }`}
