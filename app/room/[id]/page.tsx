@@ -794,39 +794,38 @@ export default function RoomPage() {
 
             {/* МОДАЛКА СПИСКА УЧАСТНИКОВ */}
             {showMembersList && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[3.5rem] p-8 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-2xl scale-in not-italic">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-black uppercase tracking-tighter text-blue-600">Штат команды ({approvedMembers.length})</h2>
-                            <button onClick={() => setShowMembersList(false)} className="text-gray-400 hover:text-black text-xl font-black">✕</button>
-                        </div>
-                        <div className="space-y-3">
-                            {members.map((member) => (
-                                <div key={member.id} className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between">
-                                    <div>
-                                        <p className="font-black text-sm">{member.nickname || '—'}</p>
-                                        <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
-                                        <p className="text-[9px] font-black uppercase mt-1">
-                                            {member.role === 'owner' && <span className="text-purple-600">Владелец</span>}
-                                            {member.role === 'admin' && <span className="text-blue-600">Админ</span>}
-                                            {member.role === 'player' && <span className="text-green-600">Игрок</span>}
-                                            {member.role === 'pending' && <span className="text-yellow-500">На подтверждении</span>}
-                                        </p>
-                                    </div>
-                                    {canManageRoom && member.user_id !== userId && (
-                                        <div className="flex gap-2">
-                                            {member.role === 'pending' && (
-                                                <button
-                                                    onClick={() => handleApproveMember(member.id)}
-                                                    className="bg-green-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
-                                                >
-                                                    Подтвердить
-                                                </button>
-                                            )}
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-[3.5rem] p-8 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-2xl scale-in not-italic">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-black uppercase tracking-tighter text-blue-600">Штат команды</h2>
+                <button onClick={() => setShowMembersList(false)} className="text-gray-400 hover:text-black text-xl font-black">✕</button>
+            </div>
 
-                                            {/* Админ может управлять админами, но не владельцем */}
-                                            {canManageRoom && member.role !== 'owner' && (
-                                                <>
+            {/* Разделяем участников по ролям */}
+            {(() => {
+                const staff = members.filter(m => m.role === 'owner' || m.role === 'admin');
+                const players = members.filter(m => m.role === 'player');
+                const bench = members.filter(m => m.role === 'pending');
+
+                return (
+                    <div className="space-y-6">
+                        {/* Тренерский штаб */}
+                        {staff.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-black uppercase text-purple-600 mb-3 tracking-wider">👔 Тренерский штаб</h3>
+                                <div className="space-y-3">
+                                    {staff.map((member) => (
+                                        <div key={member.id} className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between">
+                                            <div>
+                                                <p className="font-black text-sm">{member.nickname || '—'}</p>
+                                                <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
+                                                <p className="text-[9px] font-black uppercase mt-1">
+                                                    {member.role === 'owner' && <span className="text-purple-600">Владелец</span>}
+                                                    {member.role === 'admin' && <span className="text-blue-600">Админ</span>}
+                                                </p>
+                                            </div>
+                                            {canManageRoom && member.user_id !== userId && (
+                                                <div className="flex gap-2">
                                                     {member.role === 'admin' ? (
                                                         <button
                                                             onClick={() => handleRemoveAdmin(member.user_id)}
@@ -842,26 +841,95 @@ export default function RoomPage() {
                                                             Сделать админом
                                                         </button>
                                                     )}
-                                                </>
-                                            )}
-
-                                            {/* Удалить можно всех, кроме владельца */}
-                                            {member.role !== 'owner' && (
-                                                <button
-                                                    onClick={() => handleRemoveMember(member.id)}
-                                                    className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
-                                                >
-                                                    Удалить
-                                                </button>
+                                                    {member.role !== 'owner' && (
+                                                        <button
+                                                            onClick={() => handleRemoveMember(member.id)}
+                                                            className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                        >
+                                                            Удалить
+                                                        </button>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        )}
+
+                        {/* Основной состав */}
+                        {players.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-black uppercase text-green-600 mb-3 tracking-wider">⚽ Основной состав</h3>
+                                <div className="space-y-3">
+                                    {players.map((member) => (
+                                        <div key={member.id} className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between">
+                                            <div>
+                                                <p className="font-black text-sm">{member.nickname || '—'}</p>
+                                                <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
+                                                <p className="text-[9px] font-black uppercase mt-1 text-green-600">Игрок</p>
+                                            </div>
+                                            {canManageRoom && member.user_id !== userId && (
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleMakeAdmin(member.user_id)}
+                                                        className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                    >
+                                                        Сделать админом
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRemoveMember(member.id)}
+                                                        className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                    >
+                                                        Удалить
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Скамейка запасных (на подтверждении) */}
+                        {bench.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-black uppercase text-yellow-600 mb-3 tracking-wider">🪑 Скамейка запасных</h3>
+                                <div className="space-y-3">
+                                    {bench.map((member) => (
+                                        <div key={member.id} className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between">
+                                            <div>
+                                                <p className="font-black text-sm">{member.nickname || '—'}</p>
+                                                <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
+                                                <p className="text-[9px] font-black uppercase mt-1 text-yellow-600">Ожидание</p>
+                                            </div>
+                                            {canManageRoom && (
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleApproveMember(member.id)}
+                                                        className="bg-green-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                    >
+                                                        Подтвердить
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRemoveMember(member.id)}
+                                                        className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                    >
+                                                        Удалить
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                </div>
-            )}
+                );
+            })()}
+        </div>
+    </div>
+)}
 
             {/* МОДАЛКА ОЖИДАЮЩИХ ПОДТВЕРЖДЕНИЯ */}
             {showPendingList && canManageRoom && (

@@ -41,9 +41,14 @@ export default function HomePage() {
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-gray-200/50 p-10 border border-gray-100">
         
         {/* Логотип или Иконка */}
-        <div className="w-20 h-20 bg-blue-600 rounded-2xl mx-auto mb-8 flex items-center justify-center shadow-lg shadow-blue-200">
-          <span className="text-white text-4xl font-black italic">G</span>
-        </div>
+       {/* Логотип */}
+<div className="w-100 h-30 mx-auto mb-8 flex items-center justify-center">
+  <img 
+    src="/footballhublogo1.png" 
+    alt="Football Hub Logo"
+    className="w-full h-full object-contain"
+  />
+</div>
 
         {user ? (
           /* Контент для авторизованного пользователя */
@@ -74,9 +79,9 @@ export default function HomePage() {
         ) : (
           /* Контент для гостя */
           <div className="text-center">
-            <h1 className="text-3xl font-black mb-2 uppercase tracking-tight">Football-hub</h1>
+            
             <p className="text-gray-500 mb-10 text-sm leading-relaxed">
-              Создавайте команды, приглашайте друзей по ID и играйте вместе.
+              Создавайте клубы, приглашайте друзей по ID команды и играйте вместе.
             </p>
             
             <div className="flex flex-col gap-4">

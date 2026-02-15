@@ -109,7 +109,7 @@ export default function DashboardPage() {
             onClick={() => router.push(`/room/${room.id}`)}
             className="bg-black text-white px-7 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-gray-200"
           >
-            Идти на тренировку
+            На тренировку
           </button>
           {isAdmin && (
             <button 
@@ -173,7 +173,7 @@ export default function DashboardPage() {
             adminRooms.map(r => <GroupCard key={r.id} room={r} isAdmin={true} />)
           ) : (
             <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-[10px] font-black uppercase text-gray-200 tracking-widest">
-              У вас нет созданных команд
+              Вы ещё не владеете клубами
             </div>
           )}
         </section>
@@ -181,13 +181,13 @@ export default function DashboardPage() {
         {/* PLAYER SECTION */}
         <section className="pb-10">
           <h2 className="text-[10px] font-black text-gray-300 mb-6 uppercase tracking-[0.4em] ml-4 italic">
-            Команды в которых вы состоите
+            Подписанные контракты
           </h2>
           {playerRooms.length > 0 ? (
             playerRooms.map(r => <GroupCard key={r.id} room={r} isAdmin={false} />)
           ) : (
             <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-[10px] font-black uppercase text-gray-200 tracking-widest">
-              Вы еще не вступили в команды
+              Вы еще не в составе
             </div>
           )}
         </section>
