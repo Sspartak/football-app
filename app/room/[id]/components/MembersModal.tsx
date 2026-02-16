@@ -8,11 +8,13 @@ interface Props {
     members: Member[]
     approvedCount: number
     canManageRoom: boolean
+    currentUserRole?: string
     userId: string | null
     onApprove: (memberId: string) => Promise<void>
     onMakeAdmin: (memberUserId: string) => Promise<void>
     onRemoveAdmin: (memberUserId: string) => Promise<void>
     onRemove: (memberId: string) => Promise<void>
+    onLeave: () => Promise<void>
 }
 
 export default function MembersModal({
@@ -21,17 +23,20 @@ export default function MembersModal({
     members,
     approvedCount,
     canManageRoom,
+    currentUserRole,
     userId,
     onApprove,
     onMakeAdmin,
     onRemoveAdmin,
-    onRemove
+    onRemove,
+    onLeave
 }: Props) {
     if (!isOpen) return null
 
     const staff = members.filter(m => m.role === 'owner' || m.role === 'admin')
     const players = members.filter(m => m.role === 'player')
     const bench = members.filter(m => m.role === 'pending')
+    const currentMember = members.find(m => m.user_id === userId)
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -66,21 +71,21 @@ export default function MembersModal({
                                                 {member.role === 'admin' ? (
                                                     <button
                                                         onClick={() => onRemoveAdmin(member.user_id)}
-                                                        className="bg-orange-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                        className="bg-orange-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-orange-600 transition-all min-w-[100px]"
                                                     >
                                                         Убрать админа
                                                     </button>
                                                 ) : (
                                                     <button
                                                         onClick={() => onMakeAdmin(member.user_id)}
-                                                        className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                        className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 transition-all min-w-[100px]"
                                                     >
                                                         Сделать админом
                                                     </button>
                                                 )}
                                                 <button
                                                     onClick={() => onRemove(member.id)}
-                                                    className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                    className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-red-600 transition-all min-w-[100px]"
                                                 >
                                                     Удалить
                                                 </button>
@@ -106,22 +111,33 @@ export default function MembersModal({
                                             <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
                                             <p className="text-[9px] font-black uppercase mt-1 text-green-600">Игрок</p>
                                         </div>
-                                        {canManageRoom && member.user_id !== userId && (
-                                            <div className="flex gap-2">
+                                        <div className="flex gap-2">
+                                            {canManageRoom && member.user_id !== userId && (
+                                                <>
+                                                    <button
+                                                        onClick={() => onMakeAdmin(member.user_id)}
+                                                        className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 transition-all min-w-[100px]"
+                                                    >
+                                                        Сделать админом
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onRemove(member.id)}
+                                                        className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-red-600 transition-all min-w-[100px]"
+                                                    >
+                                                        Удалить
+                                                    </button>
+                                                </>
+                                            )}
+                                            {/* Кнопка "Выйти" для самого участника */}
+                                            {member.user_id === userId && currentUserRole !== 'owner' && (
                                                 <button
-                                                    onClick={() => onMakeAdmin(member.user_id)}
-                                                    className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                    onClick={onLeave}
+                                                    className="bg-gray-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-gray-600 transition-all min-w-[100px]"
                                                 >
-                                                    Сделать админом
+                                                    Выйти
                                                 </button>
-                                                <button
-                                                    onClick={() => onRemove(member.id)}
-                                                    className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
-                                                >
-                                                    Удалить
-                                                </button>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -142,22 +158,33 @@ export default function MembersModal({
                                             <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
                                             <p className="text-[9px] font-black uppercase mt-1 text-yellow-600">Ожидание</p>
                                         </div>
-                                        {canManageRoom && (
-                                            <div className="flex gap-2">
+                                        <div className="flex gap-2">
+                                            {canManageRoom && (
+                                                <>
+                                                    <button
+                                                        onClick={() => onApprove(member.id)}
+                                                        className="bg-green-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-green-600 transition-all min-w-[100px]"
+                                                    >
+                                                        Подтвердить
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onRemove(member.id)}
+                                                        className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-red-600 transition-all min-w-[100px]"
+                                                    >
+                                                        Удалить
+                                                    </button>
+                                                </>
+                                            )}
+                                            {/* Кнопка "Выйти" для самого участника в ожидании */}
+                                            {member.user_id === userId && (
                                                 <button
-                                                    onClick={() => onApprove(member.id)}
-                                                    className="bg-green-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
+                                                    onClick={onLeave}
+                                                    className="bg-gray-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-gray-600 transition-all min-w-[100px]"
                                                 >
-                                                    Подтвердить
+                                                    Выйти
                                                 </button>
-                                                <button
-                                                    onClick={() => onRemove(member.id)}
-                                                    className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase"
-                                                >
-                                                    Удалить
-                                                </button>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>

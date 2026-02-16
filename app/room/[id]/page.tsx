@@ -50,13 +50,15 @@ export default function RoomPage() {
             if (!user) return
             setUserId(user.id)
 
-            const [roomRes, membersRes, usersRes, matchRes, messagesRes] = await Promise.all([
+            const [roomRes, membersRes, usersRes, matchesRes, messagesRes] = await Promise.all([
                 supabase.from('rooms').select('*').eq('id', roomId).single(),
                 supabase.from('room_members').select('*').eq('room_id', roomId),
                 supabase.from('users').select('id, first_name, last_name'),
-                supabase.from('matches').select('*').eq('room_id', roomId).maybeSingle(),
+                supabase.from('matches').select('*').eq('room_id', roomId),
                 supabase.from('messages').select('*').eq('room_id', roomId).order('created_at', { ascending: true })
             ])
+
+            console.log('fetchData - matchesRes:', matchesRes)
 
             if (roomRes.data) setRoom(roomRes.data)
             if (roomRes.data) setTempRoomName(roomRes.data.name)
@@ -70,27 +72,30 @@ export default function RoomPage() {
                 setMembers(enriched)
             }
 
-            if (matchRes.data) {
-                setMatch(matchRes.data)
+            if (matchesRes.data && matchesRes.data.length > 0) {
+                const latestMatch = matchesRes.data[matchesRes.data.length - 1]
+                setMatch(latestMatch)
+                
                 const { data: slotsData } = await supabase
                     .from('match_slots')
                     .select('*')
-                    .eq('match_id', matchRes.data.id)
+                    .eq('match_id', latestMatch.id)
                     .order('created_at', { ascending: true })
                 setSlots(slotsData || [])
+                
                 setMatchFormData({
-                    address: matchRes.data.address || '',
-                    date: matchRes.data.match_date || '',
-                    start: matchRes.data.start_time || '',
-                    end: matchRes.data.end_time || '',
-                    max: matchRes.data.max_players || 10
+                    address: latestMatch.address || '',
+                    date: latestMatch.match_date || '',
+                    start: latestMatch.start_time || '',
+                    end: latestMatch.end_time || '',
+                    max: latestMatch.max_players || 10
                 })
 
-                if (matchRes.data.status === 'teams_distributed') {
+                if (latestMatch.status === 'teams_distributed') {
                     const { data: teamsData } = await supabase
                         .from('match_teams')
                         .select('*, color_json')
-                        .eq('match_id', matchRes.data.id)
+                        .eq('match_id', latestMatch.id)
 
                     if (teamsData) {
                         const teamsWithPlayers = await Promise.all(teamsData.map(async (team) => {
@@ -104,6 +109,10 @@ export default function RoomPage() {
                         setTeams(teamsWithPlayers)
                     }
                 }
+            } else {
+                setMatch(null)
+                setSlots([])
+                setTeams([])
             }
 
             if (messagesRes.data) setMessages(messagesRes.data)
@@ -318,8 +327,36 @@ export default function RoomPage() {
         router.push('/dashboard')
     }
 
+    const handleOpenMatchForm = () => {
+        if (match) {
+            alert('Сначала завершите или удалите текущий матч')
+            return
+        }
+        console.log('Opening match form')
+        setShowMatchForm(true)
+    }
+
     const saveMatch = async () => {
-        if (!canManageRoom) return
+        console.log('=== НАЧАЛО saveMatch ===')
+        console.log('canManageRoom:', canManageRoom)
+        console.log('match существует?', match)
+        console.log('formData:', matchFormData)
+        
+        if (!canManageRoom) {
+            console.log('Нет прав для создания матча')
+            return
+        }
+
+        if (match) {
+            alert('Матч уже существует. Сначала удалите текущий матч.')
+            return
+        }
+
+        if (!matchFormData.address || !matchFormData.date || !matchFormData.start) {
+            console.log('Не заполнены обязательные поля')
+            alert('Заполните место, дату и время начала')
+            return
+        }
 
         const payload = {
             room_id: roomId,
@@ -327,19 +364,34 @@ export default function RoomPage() {
             match_date: matchFormData.date,
             start_time: matchFormData.start,
             end_time: matchFormData.end || null,
-            max_players: matchFormData.max || 10
+            max_players: matchFormData.max || 10,
+            status: 'voting'
         }
+        
+        console.log('Payload для отправки:', payload)
 
         try {
-            if (match) {
-                await supabase.from('matches').update(payload).eq('id', match.id)
+            console.log('Создаем новый матч')
+            const result = await supabase
+                .from('matches')
+                .insert([payload])
+            
+            console.log('Ответ от Supabase:', result)
+            
+            if (result.error) {
+                console.error('Ошибка Supabase:', result.error)
+                alert('Ошибка при сохранении: ' + result.error.message)
             } else {
-                await supabase.from('matches').insert([payload])
+                console.log('Матч успешно сохранен')
+                setShowMatchForm(false)
+                
+                setTimeout(async () => {
+                    await fetchData()
+                }, 300)
             }
-            setShowMatchForm(false)
-            await fetchData()
         } catch (error) {
-            console.error('Ошибка при сохранении матча:', error)
+            console.error('Непредвиденная ошибка:', error)
+            alert('Произошла ошибка')
         }
     }
 
@@ -404,16 +456,18 @@ export default function RoomPage() {
             <main className="flex-1 flex flex-col md:flex-row overflow-hidden bg-gray-100 p-4 gap-4">
                 {/* Левая колонка */}
                 <div className="md:w-[40%] flex flex-col gap-4 overflow-y-auto custom-scroll pr-1">
-                    {/* Кнопки управления - СВЕРХУ */}
-                    <ActionButtons
-                        canManageRoom={canManageRoom}
-                        currentUserRole={currentUserRole}
-                        pendingCount={pendingMembers.length}
-                        onShowMembers={() => setShowMembersList(true)}
-                        onShowPending={() => setShowPendingList(true)}
-                        onShowMatchForm={() => setShowMatchForm(true)}
-                        onLeaveRoom={handleLeaveRoom}
-                    />
+                    {/* Добавляем отступ сверху, чтобы кнопки не перекрывались шапкой */}
+                    <div className="pt-2">
+                        {/* Кнопки управления - СВЕРХУ */}
+                        <ActionButtons
+                            canManageRoom={canManageRoom}
+                            currentUserRole={currentUserRole}
+                            pendingCount={pendingMembers.length}
+                            onShowMembers={() => setShowMembersList(true)}
+                            onShowPending={() => setShowPendingList(true)}
+                            onShowMatchForm={handleOpenMatchForm}
+                        />
+                    </div>
                     
                     <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100 flex flex-col min-h-fit">
                         {match && (
@@ -430,25 +484,38 @@ export default function RoomPage() {
                                     onEdit={() => setShowMatchForm(true)}
                                 />
                                 
-                                {match.status === 'teams_distributed' ? (
-                                    <TeamsDisplay teams={teams} />
-                                ) : (
-                                    <VotingPanel
-                                        matchId={match.id}
-                                        goPlayers={goPlayers}
-                                        reservePlayers={reservePlayers}
-                                        notGoPlayers={notGoPlayers}
-                                        canManageRoom={canManageRoom}
-                                        canVote={canVote}
-                                        maxPlayers={match.max_players}
-                                        onVote={handleVote}
-                                        onDeleteSlot={deleteSlot}
-                                        onAddManualPlayer={addManualPlayer}
-                                        manualName={manualName}
-                                        setManualName={setManualName}
-                                        showManualInput={canManageRoom}
-                                    />
+                                {/* Кнопка "Сформировать составы" между карточкой и панелью голосования */}
+                                {canManageRoom && match && match.status !== 'teams_distributed' && (
+                                    <button
+                                        onClick={() => router.push(`/room/${roomId}/matches`)}
+                                        className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all my-4 w-full"
+                                    >
+                                        ⚽ Сформировать составы
+                                    </button>
                                 )}
+                                
+                                {/* Добавляем отступ перед панелью голосования */}
+                                <div className="mt-2">
+                                    {match.status === 'teams_distributed' ? (
+                                        <TeamsDisplay teams={teams} />
+                                    ) : (
+                                        <VotingPanel
+                                            matchId={match.id}
+                                            goPlayers={goPlayers}
+                                            reservePlayers={reservePlayers}
+                                            notGoPlayers={notGoPlayers}
+                                            canManageRoom={canManageRoom}
+                                            canVote={canVote}
+                                            maxPlayers={match.max_players}
+                                            onVote={handleVote}
+                                            onDeleteSlot={deleteSlot}
+                                            onAddManualPlayer={addManualPlayer}
+                                            manualName={manualName}
+                                            setManualName={setManualName}
+                                            showManualInput={canManageRoom}
+                                        />
+                                    )}
+                                </div>
                             </>
                         )}
 
@@ -480,11 +547,13 @@ export default function RoomPage() {
                 members={members}
                 approvedCount={approvedMembers.length}
                 canManageRoom={canManageRoom}
+                currentUserRole={currentUserRole}
                 userId={userId}
                 onApprove={handleApproveMember}
                 onMakeAdmin={handleMakeAdmin}
                 onRemoveAdmin={handleRemoveAdmin}
                 onRemove={handleRemoveMember}
+                onLeave={handleLeaveRoom}
             />
 
             <PendingModal

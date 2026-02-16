@@ -29,23 +29,22 @@ export default function MatchCard({
 
     return (
         <div className="bg-blue-600 text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden shrink-0">
-            {/* Кнопки управления матчем */}
             {canManageRoom && (
-                <div className="absolute top-4 right-4 flex gap-2">
-                    <button
-                        onClick={onEdit}
-                        className="text-white/60 hover:text-white text-[10px] font-black uppercase transition-colors bg-blue-700/30 px-3 py-1 rounded-full"
-                    >
-                        ✎ Изменить
-                    </button>
-                    <button
-                        onClick={onDelete}
-                        className="text-white/60 hover:text-white text-[10px] font-black uppercase transition-colors bg-red-500/30 px-3 py-1 rounded-full"
-                    >
-                        ✕ Удалить
-                    </button>
-                </div>
-            )}
+    <div className="absolute top-4 right-4 flex gap-2">
+        <button
+            onClick={onEdit}
+            className="w-full block bg-blue-700/30 hover:bg-blue-700/50 text-white/60 hover:text-white text-[10px] font-black uppercase transition-all px-4 py-2 rounded-full min-w-[100px]"
+        >
+            ✎ Изменить
+        </button>
+        <button
+            onClick={onDelete}
+            className="w-full block bg-red-500/30 hover:bg-red-500/50 text-white/60 hover:text-white text-[10px] font-black uppercase transition-all px-4 py-2 rounded-full min-w-[80px]"
+        >
+            ✕ Удалить
+        </button>
+    </div>
+)}
             
             <p className="text-[10px] font-black uppercase opacity-60 mb-1 tracking-widest truncate">{address}</p>
             <p className="text-xl font-black uppercase mb-4">{formattedDate}</p>

@@ -22,6 +22,7 @@ export default function MatchFormModal({
     onSave
 }: Props) {
     if (!isOpen) return null
+console.log('MatchFormModal OPEN')
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">

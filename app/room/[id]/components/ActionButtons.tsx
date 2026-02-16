@@ -7,7 +7,6 @@ interface Props {
     onShowMembers: () => void
     onShowPending: () => void
     onShowMatchForm: () => void
-    onLeaveRoom: () => Promise<void>
 }
 
 export default function ActionButtons({
@@ -16,8 +15,7 @@ export default function ActionButtons({
     pendingCount,
     onShowMembers,
     onShowPending,
-    onShowMatchForm,
-    onLeaveRoom
+    onShowMatchForm
 }: Props) {
     return (
         <div className="flex justify-center gap-6 mb-4">
@@ -39,15 +37,6 @@ export default function ActionButtons({
                             {pendingCount}
                         </span>
                     )}
-                </button>
-            )}
-
-            {currentUserRole !== 'owner' && (
-                <button
-                    onClick={onLeaveRoom}
-                    className="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors"
-                >
-                    🚪 Выйти из состава
                 </button>
             )}
 
