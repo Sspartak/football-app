@@ -57,42 +57,53 @@ export default function MembersModal({
                             </h3>
                             <div className="space-y-3">
                                 {staff.map((member) => (
-                                    <div key={member.id} className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between">
-                                        <div>
-                                            <p className="font-black text-sm">{member.nickname || '—'}</p>
-                                            <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
-                                            <p className="text-[9px] font-black uppercase mt-1">
-                                                {member.role === 'owner' && <span className="text-purple-600">Владелец</span>}
-                                                {member.role === 'admin' && <span className="text-blue-600">Админ</span>}
-                                            </p>
-                                        </div>
-                                        {canManageRoom && member.user_id !== userId && member.role !== 'owner' && (
-                                            <div className="flex gap-2">
-                                                {member.role === 'admin' ? (
-                                                    <button
-                                                        onClick={() => onRemoveAdmin(member.user_id)}
-                                                        className="bg-orange-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-orange-600 transition-all min-w-[100px]"
-                                                    >
-                                                        Убрать админа
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => onMakeAdmin(member.user_id)}
-                                                        className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 transition-all min-w-[100px]"
-                                                    >
-                                                        Сделать админом
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={() => onRemove(member.id)}
-                                                    className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-red-600 transition-all min-w-[100px]"
-                                                >
-                                                    Удалить
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
+    <div key={member.id} className="bg-gray-50 p-5 rounded-3xl flex items-center justify-between">
+        <div>
+            <p className="font-black text-sm">{member.nickname || '—'}</p>
+            <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
+            <p className="text-[9px] font-black uppercase mt-1">
+                {member.role === 'owner' && <span className="text-purple-600">Владелец</span>}
+                {member.role === 'admin' && <span className="text-blue-600">Админ</span>}
+            </p>
+        </div>
+        {canManageRoom && member.user_id !== userId && member.role !== 'owner' && (
+            <div className="flex gap-2">
+                {member.role === 'admin' ? (
+                    <button
+                        onClick={() => onRemoveAdmin(member.user_id)}
+                        className="bg-orange-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-orange-600 transition-all min-w-[100px]"
+                    >
+                        Убрать админа
+                    </button>
+                ) : (
+                    <button
+                        onClick={() => onMakeAdmin(member.user_id)}
+                        className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 transition-all min-w-[100px]"
+                    >
+                        Сделать админом
+                    </button>
+                )}
+                <button
+                    onClick={() => onRemove(member.id)}
+                    className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-red-600 transition-all min-w-[100px]"
+                >
+                    Удалить
+                </button>
+            </div>
+        )}
+        {/* Добавить сюда кнопку для самого админа */}
+        {member.user_id === userId && member.role === 'admin' && (
+            <div className="flex gap-2">
+                <button
+                    onClick={onLeave}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-gray-600 transition-all min-w-[100px]"
+                >
+                    Выйти
+                </button>
+            </div>
+        )}
+    </div>
+))}
                             </div>
                         </div>
                     )}

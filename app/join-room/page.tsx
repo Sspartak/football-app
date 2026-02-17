@@ -10,31 +10,32 @@ export default function JoinRoomPage() {
   const [error, setError] = useState('')
   const router = useRouter()
 
-  const joinRoom = async () => {
+ const joinRoom = async () => {
     if (!roomId.trim()) return
     setLoading(true)
     setError('')
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Авторизуйтесь снова')
-      const userNick = user.user_metadata?.nickname
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('Авторизуйтесь снова')
+        const userNick = user.user_metadata?.nickname
 
-      const { error: insertError } = await supabase.from('room_members').insert({
-        room_id: roomId,
-        user_id: user.id,
-        email: user.email,
-        nickname: userNick,
-        approved: false
-      })
+        const { error: insertError } = await supabase.from('room_members').insert({
+            room_id: roomId,
+            user_id: user.id,
+            email: user.email,
+            nickname: userNick,
+            approved: false,
+            role: 'pending'  // ← ЭТА СТРОКА НОВАЯ
+        })
 
-      if (insertError) throw new Error('Команда не найдена или вы уже подали заявку')
-      router.push('/dashboard')
+        if (insertError) throw new Error('Команда не найдена или вы уже подали заявку')
+        router.push('/dashboard')
     } catch (err: any) {
-      setError(err.message)
-      setLoading(false)
+        setError(err.message)
+        setLoading(false)
     }
-  }
+}
 
   return (
     <div className="p-6 max-w-md mx-auto min-h-screen flex flex-col justify-center text-black">

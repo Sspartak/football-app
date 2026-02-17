@@ -318,14 +318,27 @@ export default function RoomPage() {
     }
 
     const handleLeaveRoom = async () => {
-        if (!window.confirm('Вы уверены, что хотите покинуть команду?')) return
-        await supabase
+    if (!window.confirm('Вы уверены, что хотите покинуть команду?')) return
+    
+    try {
+        const { error } = await supabase
             .from('room_members')
             .delete()
             .eq('room_id', roomId)
             .eq('user_id', userId)
+        
+        if (error) {
+            console.error('Ошибка при выходе из команды:', error)
+            alert('Не удалось покинуть команду')
+            return
+        }
+        
         router.push('/dashboard')
+    } catch (err) {
+        console.error('Непредвиденная ошибка:', err)
+        alert('Произошла ошибка')
     }
+}
 
     const handleOpenMatchForm = () => {
         if (match) {
