@@ -14,15 +14,15 @@ interface Props {
     onSave: () => Promise<void>
 }
 
-export default function MatchFormModal({
-    isOpen,
-    onClose,
-    formData,
-    setFormData,
-    onSave
-}: Props) {
-    if (!isOpen) return null
-console.log('MatchFormModal OPEN')
+export default function MatchFormModal({ isOpen, onClose, formData, setFormData, onSave }: Props) {
+    console.log('MatchFormModal render, isOpen:', isOpen, 'formData:', formData)
+    
+    if (!isOpen) {
+        console.log('MatchFormModal not open')
+        return null
+    }
+    
+    console.log('MatchFormModal OPEN')
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
