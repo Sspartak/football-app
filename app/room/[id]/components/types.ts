@@ -25,7 +25,12 @@ export interface Match {
     start_time: string
     end_time: string | null
     max_players: number
-    status: 'voting' | 'teams_distributed'
+    team_limit?: number | null
+    game_format?: number | null
+    match_type?: 'match' | 'teams'
+    cost?: number | null
+    cost_payer?: 'player' | 'team' | null
+    status: 'voting' | 'teams_distributed' | string
     created_at: string
 }
 
@@ -36,13 +41,18 @@ export interface Slot {
     nickname: string
     status: 'go' | 'reserve' | 'not_go'
     team_id?: string | null
+    added_by_user_id?: string | null
+    added_by_nickname?: string | null
     created_at: string
 }
 
 export interface Team {
     id: string
+    match_id?: string
     name: string
     players: Slot[]
+    display_order?: number
+    captain_user_id?: string | null
     color_json?: {
         text: string
         bg: string

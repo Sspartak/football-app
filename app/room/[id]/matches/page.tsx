@@ -10,12 +10,22 @@ import BasketDistribution from './components/BasketDistribution'
 import ManualDistribution from './components/ManualDistribution'
 import TeamEdit from './components/TeamEdit'
 
+interface Member {
+  id: string
+  user_id: string
+  nickname: string
+  role: string
+}
+
 export default function MatchAdminPage() {
   const { id: roomId } = useParams()
   const router = useRouter()
   
   const [match, setMatch] = useState<any>(null)
   const [goPlayers, setGoPlayers] = useState<Player[]>([])
+  const [members, setMembers] = useState<Member[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUserNickname, setCurrentUserNickname] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [numTeams, setNumTeams] = useState(2)
   const [mode, setMode] = useState<'menu' | 'auto' | 'baskets' | 'manual' | 'edit'>('menu')
@@ -27,15 +37,41 @@ export default function MatchAdminPage() {
   }, [roomId])
 
   const fetchMatchData = async () => {
-    const { data: matchData } = await supabase.from('matches').select('*').eq('room_id', roomId).maybeSingle()
-    if (matchData) {
-      setMatch(matchData)
-      const { data: slots } = await supabase
-        .from('match_slots')
-        .select('*')
-        .eq('match_id', matchData.id)
-        .eq('status', 'go')
-      setGoPlayers(slots || [])
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setCurrentUserId(user.id)
+      }
+
+      const { data: matchData } = await supabase.from('matches').select('*').eq('room_id', roomId).maybeSingle()
+      if (matchData) {
+        setMatch(matchData)
+        const { data: slots } = await supabase
+          .from('match_slots')
+          .select('*')
+          .eq('match_id', matchData.id)
+          .eq('status', 'go')
+        setGoPlayers(slots || [])
+      }
+
+      // Загружаем членов комнаты (кроме pending)
+      const { data: membersData } = await supabase
+        .from('room_members')
+        .select('id, user_id, nickname, role')
+        .eq('room_id', roomId)
+        .neq('role', 'pending')
+      
+      setMembers(membersData || [])
+
+      // Найдем текущего пользователя и его никнейм
+      if (user && membersData) {
+        const currentMember = membersData.find(m => m.user_id === user.id)
+        if (currentMember) {
+          setCurrentUserNickname(currentMember.nickname)
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки данных:', error)
     }
     setLoading(false)
   }
@@ -61,10 +97,35 @@ export default function MatchAdminPage() {
         
         if (team) {
           for (const player of teams[i].players) {
-            await supabase
+            // Проверяем, есть ли уже match_slots запись для этого игрока
+            const { data: existingSlot } = await supabase
               .from('match_slots')
-              .update({ team_id: team.id })
+              .select('id')
               .eq('id', player.id)
+              .maybeSingle()
+            
+            if (existingSlot) {
+              // Обновляем существующий match_slots
+              await supabase
+                .from('match_slots')
+                .update({ team_id: team.id })
+                .eq('id', player.id)
+            } else {
+              // Создаем новый match_slots для ручно добавленного игрока
+              const nicknameParts = player.nickname.split('//')
+              const cleanNickname = nicknameParts[0].trim()
+              const nickname = `${cleanNickname} //от ${currentUserNickname}//`
+              
+              await supabase
+                .from('match_slots')
+                .insert({
+                  match_id: match.id,
+                  nickname: nickname,
+                  status: 'go',
+                  team_id: team.id,
+                  created_at: new Date().toISOString()
+                })
+            }
           }
         }
       }
@@ -104,16 +165,16 @@ export default function MatchAdminPage() {
       </header>
 
       <main className="flex-1 flex overflow-hidden">
-        {/* Всегда показываем список игроков */}
+        {/* Список игроков: всегда показываем тех, кто отметил "ИДУ" */}
         <PlayerList 
-          players={goPlayers} 
+          players={goPlayers}
           mode={mode}
           baskets={baskets}
           teams={teams}
           onPlayerClick={handlePlayerClick}
         />
 
-        <div className="flex-1 flex items-center justify-center p-12 bg-gray-50">
+        <div className="flex-1 flex items-start justify-center p-8 bg-gray-50 overflow-auto">
           {mode === 'menu' && (
             <MenuSelector
               numTeams={numTeams}

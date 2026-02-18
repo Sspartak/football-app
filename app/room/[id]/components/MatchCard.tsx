@@ -7,6 +7,10 @@ interface Props {
     endTime: string | null
     goCount: number
     maxPlayers: number
+    teamLimit?: number | null
+    matchType?: 'match' | 'teams'
+    cost?: number | null
+    costPayer?: 'player' | 'team' | null
     canManageRoom?: boolean
     onDelete?: () => void
     onEdit?: () => void
@@ -19,6 +23,10 @@ export default function MatchCard({
     endTime, 
     goCount, 
     maxPlayers,
+    teamLimit,
+    matchType,
+    cost,
+    costPayer,
     canManageRoom,
     onDelete,
     onEdit
@@ -48,8 +56,11 @@ export default function MatchCard({
     </div>
 )}
             
-            <p className="text-[10px] font-black uppercase opacity-60 mb-1 tracking-widest truncate">{address}</p>
-            <p className="text-xl font-black uppercase mb-4">{formattedDate}</p>
+            <p className="text-base font-black uppercase mb-1 truncate">{address}</p>
+            {typeof cost === 'number' && (
+                <p className="text-[10px] font-black uppercase opacity-60 mb-1 tracking-widest">{cost} ₽ {costPayer === 'team' ? '/ с команды' : '/ с игрока'}</p>
+            )}
+            <p className="text-xl font-bold uppercase mb-4">{formattedDate}</p>
             <div className="flex gap-6 text-sm font-bold">
                 <div>
                     <span className="opacity-60 text-[9px] block uppercase mb-1">Старт</span>
@@ -60,7 +71,7 @@ export default function MatchCard({
                     {endTime?.slice(0, 5) || '—'}
                 </div>
                 <div className="ml-auto text-right text-blue-200">
-                    {goCount}/{maxPlayers}
+                    {matchType === 'teams' ? `${goCount}/${teamLimit || '—'} команд` : `${goCount}/${maxPlayers}`}
                 </div>
             </div>
         </div>

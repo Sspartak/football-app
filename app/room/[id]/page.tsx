@@ -13,6 +13,7 @@ import Chat from './components/Chat'
 import MembersModal from './components/MembersModal'
 import PendingModal from './components/PendingModal'
 import MatchFormModal from './components/MatchFormModal'
+import TeamSignupPanel from './components/TeamSignupPanel'
 
 export default function RoomPage() {
     const { id: roomId } = useParams()
@@ -30,17 +31,36 @@ export default function RoomPage() {
     const [userId, setUserId] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [showMatchForm, setShowMatchForm] = useState(false)
+    const [isEditingMatch, setIsEditingMatch] = useState(false)
     const [manualName, setManualName] = useState('')
     const [isEditingName, setIsEditingName] = useState(false)
     const [tempRoomName, setTempRoomName] = useState('')
     const [showMembersList, setShowMembersList] = useState(false)
     const [showPendingList, setShowPendingList] = useState(false)
-    const [matchFormData, setMatchFormData] = useState({
+    type MatchFormData = {
+        matchType: 'match' | 'teams'
+        address: string
+        date: string
+        start: string
+        end: string
+        max: number
+        teamLimit: number
+        gameFormat: number
+        cost?: number | ''
+        costPayer?: 'player' | 'team'
+    }
+
+    const [matchFormData, setMatchFormData] = useState<MatchFormData>({
+        matchType: 'match',
         address: '',
         date: '',
         start: '',
         end: '',
-        max: 10
+        max: 10,
+        teamLimit: 2,
+        gameFormat: 5,
+        cost: '',
+        costPayer: 'player'
     })
 
     // Загрузка данных
@@ -82,20 +102,16 @@ export default function RoomPage() {
                     .eq('match_id', latestMatch.id)
                     .order('created_at', { ascending: true })
                 setSlots(slotsData || [])
-                
-                setMatchFormData({
-                    address: latestMatch.address || '',
-                    date: latestMatch.match_date || '',
-                    start: latestMatch.start_time || '',
-                    end: latestMatch.end_time || '',
-                    max: latestMatch.max_players || 10
-                })
 
-                if (latestMatch.status === 'teams_distributed') {
+                const isTeamsMatch = latestMatch.match_type === 'teams'
+                let fetchedTeams: Team[] = []
+
+                if (isTeamsMatch || latestMatch.status === 'teams_distributed') {
                     const { data: teamsData } = await supabase
                         .from('match_teams')
                         .select('*, color_json')
                         .eq('match_id', latestMatch.id)
+                        .order('display_order', { ascending: true })
 
                     if (teamsData) {
                         const teamsWithPlayers = await Promise.all(teamsData.map(async (team) => {
@@ -106,9 +122,25 @@ export default function RoomPage() {
                                 .eq('status', 'go')
                             return { ...team, players: players || [], color: team.color_json }
                         }))
+                        fetchedTeams = teamsWithPlayers
                         setTeams(teamsWithPlayers)
                     }
+                } else {
+                    setTeams([])
                 }
+
+                setMatchFormData({
+                    matchType: isTeamsMatch ? 'teams' : 'match',
+                    address: latestMatch.address || '',
+                    date: latestMatch.match_date || '',
+                    start: latestMatch.start_time || '',
+                    end: latestMatch.end_time || '',
+                    max: latestMatch.max_players || 10,
+                    teamLimit: latestMatch.team_limit || Math.max(2, fetchedTeams.length || 2),
+                    gameFormat: latestMatch.game_format || 5,
+                    cost: latestMatch.cost ?? '',
+                    costPayer: latestMatch.cost_payer || 'player'
+                })
             } else {
                 setMatch(null)
                 setSlots([])
@@ -160,6 +192,7 @@ export default function RoomPage() {
     const goPlayers = slots.filter(s => s.status === 'go')
     const reservePlayers = slots.filter(s => s.status === 'reserve')
     const notGoPlayers = slots.filter(s => s.status === 'not_go')
+    const registeredTeamsCount = teams.filter(team => slots.some(s => s.status === 'go' && s.team_id === team.id)).length
 
     // --- Обработчики ---
     const handleVote = async (status: 'go' | 'reserve' | 'not_go') => {
@@ -240,13 +273,53 @@ export default function RoomPage() {
     }
 
     const deleteSlot = async (slotId: string) => {
-        if (!canManageRoom) return
         if (!window.confirm('Удалить игрока из списка?')) return
-        await supabase.from('match_slots').delete().eq('id', slotId)
+        
+        // Получаем информацию о слоте
+        const slot = slots.find(s => s.id === slotId)
+        if (!slot) {
+            alert('Игрок не найден')
+            return
+        }
+        
+        // Проверяем права:
+        // - Owner/Admin могут удалять любых
+        // - Player может удалять только тех, кого он добавил
+        const canDelete = canManageRoom || (slot.added_by_user_id === userId)
+        
+        if (!canDelete) {
+            alert('Вы можете удалить только игроков, которых добавили сами')
+            return
+        }
+        
+        try {
+            const { error } = await supabase.from('match_slots').delete().eq('id', slotId)
+            
+            if (error) {
+                console.error('Ошибка удаления:', error)
+                alert('Ошибка при удалении: ' + error.message)
+                return
+            }
+            
+            // Обновляем данные после успешного удаления
+            await fetchData()
+        } catch (err) {
+            console.error('Неожиданная ошибка:', err)
+            alert('Произошла ошибка при удалении')
+        }
     }
 
     const addManualPlayer = async () => {
-        if (!manualName.trim() || !match || !canManageRoom) return
+        if (!manualName.trim() || !match) return
+        
+        // Может добавлять любой участник кроме pending
+        if (!canVote) {
+            alert('У вас нет прав на добавление игроков')
+            return
+        }
+
+        const myNick = members.find(m => m.user_id === userId)?.nickname || 'Участник'
+        const nickname = `${manualName.trim()} /от ${myNick}/`
 
         const { data: currentGoSlots } = await supabase
             .from('match_slots')
@@ -259,8 +332,10 @@ export default function RoomPage() {
 
         await supabase.from('match_slots').insert({
             match_id: match.id,
-            nickname: `// ${manualName.trim()} //`,
+            nickname: nickname,
             status,
+            added_by_user_id: userId,
+            added_by_nickname: myNick,
             created_at: new Date().toISOString()
         })
         setManualName('')
@@ -346,7 +421,44 @@ export default function RoomPage() {
             return
         }
         console.log('Opening match form')
+        setMatchFormData({
+            matchType: 'match',
+            address: '',
+            date: '',
+            start: '',
+            end: '',
+            max: 10,
+            teamLimit: 2,
+            gameFormat: 5,
+            cost: '',
+            costPayer: 'player'
+        })
+        setIsEditingMatch(false)
         setShowMatchForm(true)
+    }
+
+    const handleEditMatch = () => {
+        if (!match) return
+        const isTeamsMatch = match.match_type === 'teams'
+        setMatchFormData({
+            matchType: isTeamsMatch ? 'teams' : 'match',
+            address: match.address || '',
+            date: match.match_date || '',
+            start: match.start_time || '',
+            end: match.end_time || '',
+            max: match.max_players || 10,
+            teamLimit: match.team_limit || Math.max(2, teams.length || 2),
+            gameFormat: match.game_format || 5,
+            cost: match.cost ?? '',
+            costPayer: match.cost_payer || 'player'
+        })
+        setIsEditingMatch(true)
+        setShowMatchForm(true)
+    }
+
+    const handleCloseMatchForm = () => {
+        setShowMatchForm(false)
+        setIsEditingMatch(false)
     }
 
     const saveMatch = async () => {
@@ -360,7 +472,9 @@ export default function RoomPage() {
             return
         }
 
-        if (match) {
+        const editingExistingMatch = isEditingMatch && !!match
+
+        if (!editingExistingMatch && match) {
             alert('Матч уже существует. Сначала удалите текущий матч.')
             return
         }
@@ -371,23 +485,50 @@ export default function RoomPage() {
             return
         }
 
+        if (matchFormData.matchType === 'teams') {
+            if (matchFormData.teamLimit < 2) {
+                alert('Лимит команд должен быть не меньше 2')
+                return
+            }
+            if (matchFormData.gameFormat < 1) {
+                alert('Формат игры должен быть больше 0')
+                return
+            }
+        }
+
         const payload = {
-            room_id: roomId,
             address: matchFormData.address,
             match_date: matchFormData.date,
             start_time: matchFormData.start,
             end_time: matchFormData.end || null,
             max_players: matchFormData.max || 10,
-            status: 'voting'
+            team_limit: matchFormData.matchType === 'teams' ? matchFormData.teamLimit : null,
+            game_format: matchFormData.matchType === 'teams' ? matchFormData.gameFormat : null,
+            match_type: matchFormData.matchType,
+            cost: matchFormData.cost === '' || matchFormData.cost === undefined ? null : matchFormData.cost,
+            cost_payer: matchFormData.costPayer || null
         }
         
         console.log('Payload для отправки:', payload)
 
         try {
-            console.log('Создаем новый матч')
-            const result = await supabase
-                .from('matches')
-                .insert([payload])
+            let targetMatchId = match?.id || null
+            const result = editingExistingMatch
+                ? await supabase
+                    .from('matches')
+                    .update(payload)
+                    .eq('id', match!.id)
+                    .select('id')
+                    .single()
+                : await supabase
+                    .from('matches')
+                    .insert([{
+                        ...payload,
+                        room_id: roomId,
+                        status: 'voting'
+                    }])
+                    .select('id')
+                    .single()
             
             console.log('Ответ от Supabase:', result)
             
@@ -395,8 +536,46 @@ export default function RoomPage() {
                 console.error('Ошибка Supabase:', result.error)
                 alert('Ошибка при сохранении: ' + result.error.message)
             } else {
+                targetMatchId = result.data?.id || targetMatchId
+
+                if (targetMatchId && matchFormData.matchType === 'teams') {
+                    if (editingExistingMatch) {
+                        await supabase.from('match_slots').delete().eq('match_id', targetMatchId)
+                    }
+
+                    const { error: deleteTeamsError } = await supabase
+                        .from('match_teams')
+                        .delete()
+                        .eq('match_id', targetMatchId)
+
+                    if (deleteTeamsError) {
+                        alert('Ошибка при обновлении команд: ' + deleteTeamsError.message)
+                        return
+                    }
+
+                    const teamsPayload = Array.from({ length: matchFormData.teamLimit }).map((_, index) => ({
+                        match_id: targetMatchId,
+                        name: `Команда ${index + 1}`,
+                        display_order: index + 1,
+                        color_json: { text: 'text-black', bg: 'bg-white', label: 'Белый' }
+                    }))
+
+                    const { error: insertTeamsError } = await supabase.from('match_teams').insert(teamsPayload)
+                    if (insertTeamsError) {
+                        alert('Ошибка при создании команд: ' + insertTeamsError.message)
+                        return
+                    }
+                } else if (targetMatchId) {
+                    await supabase.from('match_teams').delete().eq('match_id', targetMatchId)
+                    await supabase
+                        .from('match_slots')
+                        .update({ team_id: null })
+                        .eq('match_id', targetMatchId)
+                }
+
                 console.log('Матч успешно сохранен')
                 setShowMatchForm(false)
+                setIsEditingMatch(false)
                 
                 setTimeout(async () => {
                     await fetchData()
@@ -490,15 +669,19 @@ export default function RoomPage() {
                                     matchDate={match.match_date}
                                     startTime={match.start_time}
                                     endTime={match.end_time}
-                                    goCount={goPlayers.length}
+                                    goCount={match.match_type === 'teams' ? registeredTeamsCount : goPlayers.length}
                                     maxPlayers={match.max_players}
+                                    teamLimit={match.team_limit}
+                                    matchType={match.match_type}
+                                    cost={match.cost}
+                                    costPayer={match.cost_payer}
                                     canManageRoom={canManageRoom}
                                     onDelete={deleteMatch}
-                                    onEdit={() => setShowMatchForm(true)}
+                                    onEdit={handleEditMatch}
                                 />
                                 
                                 {/* Кнопка "Сформировать составы" между карточкой и панелью голосования */}
-                                {canManageRoom && match && match.status !== 'teams_distributed' && (
+                                {canManageRoom && match && match.match_type !== 'teams' && match.status !== 'teams_distributed' && (
                                     <button
                                         onClick={() => router.push(`/room/${roomId}/matches`)}
                                         className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all my-4 w-full"
@@ -509,11 +692,24 @@ export default function RoomPage() {
                                 
                                 {/* Добавляем отступ перед панелью голосования */}
                                 <div className="mt-2">
-                                    {match.status === 'teams_distributed' ? (
+                                    {match.match_type === 'teams' ? (
+                                        <TeamSignupPanel
+                                            matchId={match.id}
+                                            teams={teams}
+                                            slots={slots}
+                                            members={members}
+                                            userId={userId}
+                                            canVote={canVote}
+                                            canManageRoom={canManageRoom}
+                                            gameFormat={match.game_format || 5}
+                                            onRefresh={fetchData}
+                                        />
+                                    ) : match.status === 'teams_distributed' ? (
                                         <TeamsDisplay teams={teams} />
                                     ) : (
                                         <VotingPanel
                                             matchId={match.id}
+                                            userId={userId}
                                             goPlayers={goPlayers}
                                             reservePlayers={reservePlayers}
                                             notGoPlayers={notGoPlayers}
@@ -525,7 +721,7 @@ export default function RoomPage() {
                                             onAddManualPlayer={addManualPlayer}
                                             manualName={manualName}
                                             setManualName={setManualName}
-                                            showManualInput={canManageRoom}
+                                            showManualInput={canVote}
                                         />
                                     )}
                                 </div>
@@ -579,7 +775,7 @@ export default function RoomPage() {
 
             <MatchFormModal
                 isOpen={showMatchForm}
-                onClose={() => setShowMatchForm(false)}
+                onClose={handleCloseMatchForm}
                 formData={matchFormData}
                 setFormData={setMatchFormData}
                 onSave={saveMatch}

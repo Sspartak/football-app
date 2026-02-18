@@ -166,7 +166,7 @@ export default function DashboardPage() {
 
         {/* ADMIN SECTION */}
         <section className="mb-12">
-          <h2 className="text-[10px] font-black text-gray-300 mb-6 uppercase tracking-[0.4em] ml-4 italic underline decoration-blue-500 underline-offset-8 decoration-2">
+          <h2 className="text-[10px] font-black text-gray-400 mb-6 uppercase tracking-[0.4em] ml-4 italic underline decoration-blue-500 underline-offset-8 decoration-2">
             Ваши команды
           </h2>
           {adminRooms.length > 0 ? (
@@ -180,13 +180,13 @@ export default function DashboardPage() {
 
         {/* PLAYER SECTION */}
         <section className="pb-10">
-          <h2 className="text-[10px] font-black text-gray-300 mb-6 uppercase tracking-[0.4em] ml-4 italic">
+          <h2 className="text-[10px] font-black text-gray-400 mb-6 uppercase tracking-[0.4em] ml-4 italic">
             Подписанные контракты
           </h2>
           {playerRooms.length > 0 ? (
             playerRooms.map(r => <GroupCard key={r.id} room={r} isAdmin={false} />)
           ) : (
-            <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-[10px] font-black uppercase text-gray-200 tracking-widest">
+            <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-[10px] font-black uppercase text-gray-300 tracking-widest">
               Вы еще не в составе
             </div>
           )}

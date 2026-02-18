@@ -4,6 +4,7 @@ import { Slot } from './types'
 
 interface Props {
     matchId: string
+    userId: string | null
     goPlayers: Slot[]
     reservePlayers: Slot[]
     notGoPlayers: Slot[]
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function VotingPanel({
+    userId,
     goPlayers,
     reservePlayers,
     notGoPlayers,
@@ -45,7 +47,7 @@ export default function VotingPanel({
                             {goPlayers.map((p) => (
                                 <div key={p.id} className="text-[11px] font-bold flex flex-col border-b border-green-100 pb-1 relative not-italic">
                                     <span className="truncate pr-4">{p.nickname}</span>
-                                    {canManageRoom && (
+                                    {(canManageRoom || p.added_by_user_id === userId) && (
                                         <button 
                                             onClick={() => onDeleteSlot(p.id)} 
                                             className="absolute right-0 top-0 text-red-500 font-black"
@@ -77,7 +79,7 @@ export default function VotingPanel({
                             {reservePlayers.map((p) => (
                                 <div key={p.id} className="text-[11px] font-bold flex flex-col border-b border-orange-100 pb-1 relative not-italic">
                                     <span className="truncate pr-4 text-orange-600 font-black">{p.nickname}</span>
-                                    {canManageRoom && (
+                                    {(canManageRoom || p.added_by_user_id === userId) && (
                                         <button 
                                             onClick={() => onDeleteSlot(p.id)} 
                                             className="absolute right-0 top-0 text-red-500 font-black"
@@ -109,7 +111,7 @@ export default function VotingPanel({
                             {notGoPlayers.map((p) => (
                                 <div key={p.id} className="text-[11px] font-medium flex flex-col border-b border-gray-100 pb-1 relative not-italic">
                                     <span className="truncate pr-4 text-gray-400">{p.nickname}</span>
-                                    {canManageRoom && (
+                                    {(canManageRoom || p.added_by_user_id === userId) && (
                                         <button 
                                             onClick={() => onDeleteSlot(p.id)} 
                                             className="absolute right-0 top-0 text-gray-400 font-black"
@@ -132,7 +134,7 @@ export default function VotingPanel({
                 </div>
             </div>
 
-            {showManualInput && canManageRoom && (
+            {showManualInput && canVote && (
                 <div className="flex gap-2 pt-6 border-t border-dashed mt-2 shrink-0">
                     <input
                         value={manualName}

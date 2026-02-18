@@ -1,16 +1,23 @@
 'use client'
 
+type MatchFormState = {
+    matchType: 'match' | 'teams'
+    address: string
+    date: string
+    start: string
+    end: string
+    max: number
+    teamLimit: number
+    gameFormat: number
+    cost?: number | ''
+    costPayer?: 'player' | 'team'
+}
+
 interface Props {
     isOpen: boolean
     onClose: () => void
-    formData: {
-        address: string
-        date: string
-        start: string
-        end: string
-        max: number
-    }
-    setFormData: (data: any) => void
+    formData: MatchFormState
+    setFormData: (data: MatchFormState) => void
     onSave: () => Promise<void>
 }
 
@@ -26,11 +33,29 @@ export default function MatchFormModal({ isOpen, onClose, formData, setFormData,
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[3.5rem] p-10 w-full max-w-md shadow-2xl scale-in not-italic">
-                <h2 className="text-3xl font-black uppercase tracking-tighter mb-8 text-blue-600">Матч</h2>
+            <div className="bg-white rounded-[3.5rem] p-8 w-full max-w-md shadow-2xl scale-in not-italic max-h-[90vh] overflow-y-auto">
+                <h2 className="text-3xl font-black uppercase tracking-tighter mb-4 text-blue-600">Создать игру</h2>
+                <div className="grid grid-cols-2 gap-2 bg-gray-100 rounded-2xl p-1 mb-6">
+                    <button
+                        onClick={() => setFormData({ ...formData, matchType: 'match' })}
+                        className={`py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                            formData.matchType === 'match' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+                        }`}
+                    >
+                        Матч
+                    </button>
+                    <button
+                        onClick={() => setFormData({ ...formData, matchType: 'teams' })}
+                        className={`py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                            formData.matchType === 'teams' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'
+                        }`}
+                    >
+                        Команды
+                    </button>
+                </div>
                 <div className="space-y-4">
                     <div>
-                        <label className="text-[10px] font-black uppercase text-gray-400 ml-3 mb-1.5 block tracking-widest">
+                        <label className="text-[10px] font-black uppercase text-gray-400 ml-3 mb-3.5 block tracking-widest">
                             Место
                         </label>
                         <input
@@ -74,23 +99,66 @@ export default function MatchFormModal({ isOpen, onClose, formData, setFormData,
                             />
                         </div>
                     </div>
+                    {formData.matchType === 'teams' && (
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-gray-400 ml-3 mb-1.5 block tracking-widest">
+                                Формат игры (5x5, 11x11 и т.п.)
+                            </label>
+                            <input
+                                type="number"
+                                placeholder="5x5, 11x11"
+                                value={formData.gameFormat}
+                                onChange={e => setFormData({ ...formData, gameFormat: e.target.value === '' ? 5 : parseInt(e.target.value) })}
+                                min="1"
+                                className="w-full bg-gray-50 p-5 rounded-3xl text-sm font-bold outline-none"
+                            />
+                        </div>
+                    )}
                     <div>
                         <label className="text-[10px] font-black uppercase text-gray-400 ml-3 mb-1.5 block tracking-widest">
-                            Лимит
+                            {formData.matchType === 'teams' ? 'Лимит команд' : 'Лимит'}
                         </label>
                         <input
                             type="number"
-                            value={formData.max}
+                            value={formData.matchType === 'teams' ? formData.teamLimit : formData.max}
                             onChange={e => {
-                                const value = e.target.value;
+                                const value = e.target.value
+                                const parsed = value === '' ? 2 : parseInt(value)
                                 setFormData({ 
                                     ...formData, 
-                                    max: value === '' ? 10 : parseInt(value) 
-                                });
+                                    ...(formData.matchType === 'teams'
+                                        ? { teamLimit: parsed }
+                                        : { max: value === '' ? 10 : parseInt(value) })
+                                })
                             }}
                             min="2"
                             className="w-full bg-gray-50 p-5 rounded-3xl text-sm font-bold outline-none"
                         />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase text-gray-400 ml-3 mb-1.5 block tracking-widest">
+                            Стоимость (необязательно)
+                        </label>
+                        <div className="flex gap-3">
+                            <input
+                                type="number"
+                                value={formData.cost === undefined ? '' : formData.cost}
+                                onChange={e => {
+                                    const v = e.target.value
+                                    setFormData({ ...formData, cost: v === '' ? '' : parseFloat(v) })
+                                }}
+                                min="0"
+                                className="flex-1 bg-gray-50 p-5 rounded-3xl text-sm font-bold outline-none"
+                            />
+                            <select
+                                value={formData.costPayer || 'player'}
+                                onChange={e => setFormData({ ...formData, costPayer: e.target.value as 'player' | 'team' })}
+                                className="bg-gray-50 p-5 rounded-3xl text-sm font-bold outline-none"
+                            >
+                                <option value="player">С игрока</option>
+                                <option value="team">С команды</option>
+                            </select>
+                        </div>
                     </div>
                     <div className="flex gap-3 pt-6">
                         <button 
