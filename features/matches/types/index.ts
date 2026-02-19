@@ -1,4 +1,4 @@
-import { TEAM_TITLE_COLORS } from '../../components/teamColors'
+import { TEAM_TITLE_COLORS } from '@/lib/constants/teamColors'
 
 // Типы для игроков и команд
 export interface Player {

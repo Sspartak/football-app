@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
-import { Member, Slot, Team } from './types'
-import { TEAM_TITLE_COLORS, TeamTitleColor } from './teamColors'
+import { supabase } from '@/lib/supabase/client'
+import { Member, Slot, Team } from '../types'
+import { TEAM_TITLE_COLORS, TeamTitleColor } from '@/lib/constants/teamColors'
+import { isPendingRole } from '@/permissions'
 
 interface Props {
     matchId: string
@@ -48,7 +49,7 @@ export default function TeamSignupPanel({
     )
 
     const currentMember = members.find(m => m.user_id === userId)
-    const teamEligibleMembers = members.filter(m => m.role === 'owner' || m.role === 'admin' || m.role === 'player')
+    const teamEligibleMembers = members.filter(m => !isPendingRole(m.role))
     const slotsInTeams = slots.filter(s => s.status === 'go' && !!s.team_id)
     const unassignedSlots = slots.filter(s => s.user_id && !s.team_id && s.status === 'reserve')
     const activeTeam = sortedTeams.find(t => t.id === activeTeamId) || null
@@ -144,7 +145,7 @@ export default function TeamSignupPanel({
         }
 
         const member = members.find(m => m.user_id === targetUserId)
-        if (!member || member.role === 'pending') {
+        if (!member || isPendingRole(member.role)) {
             alert('Можно добавить только подтвержденных участников')
             return
         }
@@ -238,7 +239,7 @@ export default function TeamSignupPanel({
             }
 
             const member = members.find(m => m.user_id === targetUserId)
-            if (!member || member.role === 'pending') continue
+            if (!member || isPendingRole(member.role)) continue
 
             const existingUnassigned = unassignedSlots.find(s => s.user_id === targetUserId)
             if (existingUnassigned) {

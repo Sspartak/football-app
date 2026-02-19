@@ -1,6 +1,6 @@
 'use client'
 
-import { Member } from './types'
+import { Member } from '../../types'
 
 interface Props {
     isOpen: boolean

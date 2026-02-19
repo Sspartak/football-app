@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Player, TempTeam, teamTitleColors } from './types'
+import { Player, TempTeam, teamTitleColors } from '../types'
 
 interface Props {
   teams: TempTeam[]

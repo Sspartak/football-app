@@ -1,6 +1,6 @@
 'use client'
 
-import { Team } from './types'
+import { Team } from '../types'
 
 interface Props {
     teams: Team[]

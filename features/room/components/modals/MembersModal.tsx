@@ -1,6 +1,15 @@
 'use client'
 
-import { Member } from './types'
+import { Member } from '../../types'
+import {
+    canDeleteMember,
+    canDemoteAdmin,
+    canPromoteToAdmin,
+    canApprovePendingMember,
+    canLeaveRoom,
+    isAdminRole,
+    isOwnerRole,
+} from '@/permissions'
 
 interface Props {
     isOpen: boolean
@@ -8,7 +17,7 @@ interface Props {
     members: Member[]
     approvedCount: number
     canManageRoom: boolean
-    currentUserRole?: string
+    currentUserRole?: Member['role']
     userId: string | null
     onApprove: (memberId: string) => Promise<void>
     onMakeAdmin: (memberUserId: string) => Promise<void>
@@ -33,7 +42,7 @@ export default function MembersModal({
 }: Props) {
     if (!isOpen) return null
 
-    const staff = members.filter(m => m.role === 'owner' || m.role === 'admin')
+    const staff = members.filter(m => isOwnerRole(m.role) || isAdminRole(m.role))
     const players = members.filter(m => m.role === 'player')
     const bench = members.filter(m => m.role === 'pending')
     const currentMember = members.find(m => m.user_id === userId)
@@ -62,27 +71,27 @@ export default function MembersModal({
             <p className="font-black text-sm">{member.nickname || '—'}</p>
             <p className="text-xs text-gray-500">{member.first_name} {member.last_name}</p>
             <p className="text-[9px] font-black uppercase mt-1">
-                {member.role === 'owner' && <span className="text-purple-600">Владелец</span>}
-                {member.role === 'admin' && <span className="text-blue-600">Админ</span>}
+                {isOwnerRole(member.role) && <span className="text-purple-600">Владелец</span>}
+                {isAdminRole(member.role) && <span className="text-blue-600">Админ</span>}
             </p>
         </div>
-        {canManageRoom && member.user_id !== userId && member.role !== 'owner' && (
+        {canDeleteMember(currentUserRole, member.role, member.user_id === userId) && (
             <div className="flex gap-2">
-                {member.role === 'admin' ? (
+                {canDemoteAdmin(currentUserRole, member.role) ? (
                     <button
                         onClick={() => onRemoveAdmin(member.user_id)}
                         className="bg-orange-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-orange-600 transition-all min-w-[100px]"
                     >
                         Убрать админа
                     </button>
-                ) : (
+                ) : canPromoteToAdmin(currentUserRole, member.role) ? (
                     <button
                         onClick={() => onMakeAdmin(member.user_id)}
                         className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 transition-all min-w-[100px]"
                     >
                         Сделать админом
                     </button>
-                )}
+                ) : null}
                 <button
                     onClick={() => onRemove(member.id)}
                     className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-red-600 transition-all min-w-[100px]"
@@ -92,7 +101,7 @@ export default function MembersModal({
             </div>
         )}
         {/* Добавить сюда кнопку для самого админа */}
-        {member.user_id === userId && member.role === 'admin' && (
+        {member.user_id === userId && isAdminRole(member.role) && canLeaveRoom(currentUserRole) && (
             <div className="flex gap-2">
                 <button
                     onClick={onLeave}
@@ -123,14 +132,16 @@ export default function MembersModal({
                                             <p className="text-[9px] font-black uppercase mt-1 text-green-600">Игрок</p>
                                         </div>
                                         <div className="flex gap-2">
-                                            {canManageRoom && member.user_id !== userId && (
+                                            {canDeleteMember(currentUserRole, member.role, member.user_id === userId) && (
                                                 <>
-                                                    <button
-                                                        onClick={() => onMakeAdmin(member.user_id)}
-                                                        className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 transition-all min-w-[100px]"
-                                                    >
-                                                        Сделать админом
-                                                    </button>
+                                                    {canPromoteToAdmin(currentUserRole, member.role) && (
+                                                        <button
+                                                            onClick={() => onMakeAdmin(member.user_id)}
+                                                            className="bg-blue-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 transition-all min-w-[100px]"
+                                                        >
+                                                            Сделать админом
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={() => onRemove(member.id)}
                                                         className="bg-red-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-red-600 transition-all min-w-[100px]"
@@ -140,7 +151,7 @@ export default function MembersModal({
                                                 </>
                                             )}
                                             {/* Кнопка "Выйти" для самого участника */}
-                                            {member.user_id === userId && currentUserRole !== 'owner' && (
+                                            {member.user_id === userId && canLeaveRoom(currentUserRole) && (
                                                 <button
                                                     onClick={onLeave}
                                                     className="bg-gray-500 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-gray-600 transition-all min-w-[100px]"
@@ -170,7 +181,7 @@ export default function MembersModal({
                                             <p className="text-[9px] font-black uppercase mt-1 text-yellow-600">Ожидание</p>
                                         </div>
                                         <div className="flex gap-2">
-                                            {canManageRoom && (
+                                            {canApprovePendingMember(currentUserRole) && (
                                                 <>
                                                     <button
                                                         onClick={() => onApprove(member.id)}

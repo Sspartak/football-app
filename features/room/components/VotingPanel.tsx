@@ -1,6 +1,6 @@
 'use client'
 
-import { Slot } from './types'
+import { Slot } from '../types'
 
 interface Props {
     matchId: string

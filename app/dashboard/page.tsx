@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import { canManageRoom } from '@/permissions'
 
 export default function DashboardPage() {
   const [rooms, setRooms] = useState<any[]>([])
@@ -94,7 +95,7 @@ export default function DashboardPage() {
              {/* Проверяем роль пользователя в этой команде */}
 {(() => {
   const userMember = roomMembers.find(m => m.user_id === userId);
-  const canManage = userMember?.role === 'owner' || userMember?.role === 'admin';
+  const canManage = canManageRoom(userMember?.role);
   return canManage && pendingCount > 0 && (
     <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest bg-orange-50 px-2 rounded-full italic animate-bounce">
       📩 ЗАЯВКИ: {pendingCount}
