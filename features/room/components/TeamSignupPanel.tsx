@@ -42,6 +42,8 @@ export default function TeamSignupPanel({
     const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
     const [tempTeamName, setTempTeamName] = useState('')
     const [tempTeamColor, setTempTeamColor] = useState<TeamTitleColor>(DEFAULT_TEAM_COLOR)
+    const [creatorRemovalCandidate, setCreatorRemovalCandidate] = useState<{ team: Team; slot: Slot } | null>(null)
+    const [isSubmittingTeam, setIsSubmittingTeam] = useState(false)
 
     const sortedTeams = useMemo(
         () => [...teams].sort((a, b) => (a.display_order || 0) - (b.display_order || 0)),
@@ -49,10 +51,14 @@ export default function TeamSignupPanel({
     )
 
     const currentMember = members.find(m => m.user_id === userId)
-    const teamEligibleMembers = members.filter(m => !isPendingRole(m.role))
+    const currentMemberRole = currentMember?.role
     const slotsInTeams = slots.filter(s => s.status === 'go' && !!s.team_id)
     const unassignedSlots = slots.filter(s => s.user_id && !s.team_id && s.status === 'reserve')
     const activeTeam = sortedTeams.find(t => t.id === activeTeamId) || null
+    const hasPresetColors = sortedTeams.some((team) => {
+        const color = (team.color_json as TeamTitleColor | null) || DEFAULT_TEAM_COLOR
+        return color.bg !== DEFAULT_TEAM_COLOR.bg || color.text !== DEFAULT_TEAM_COLOR.text
+    })
 
     const getTeamSlots = (teamId: string) =>
         slotsInTeams
@@ -64,30 +70,40 @@ export default function TeamSignupPanel({
         return slotsInTeams.find(s => s.user_id === targetUserId)?.team_id || null
     }
 
-    const getAvailablePlayersForTeam = (teamId: string | null, extraExcludedUserIds: string[] = []) => {
-        const currentTeamUserIds = new Set((teamId ? getTeamSlots(teamId) : []).map(s => s.user_id).filter(Boolean))
-        const excluded = new Set(extraExcludedUserIds)
-
-        return teamEligibleMembers.filter((member) => {
-            if (excluded.has(member.user_id)) return false
-            if (currentTeamUserIds.has(member.user_id)) return false
-            const assignedTeamId = getUserTeamId(member.user_id)
-            return !assignedTeamId
-        })
+    const getTeamCreatorId = (team: Team) => {
+        if (team.created_by_user_id) return team.created_by_user_id
+        const firstTeamSlot = getTeamSlots(team.id).find(slot => !!slot.added_by_user_id)
+        return firstTeamSlot?.added_by_user_id || null
     }
 
     const canEditTeam = (team: Team) => {
         if (canManageRoom) return true
         if (!userId) return false
-        return getTeamSlots(team.id).some(s => s.user_id === userId)
+        return getTeamCreatorId(team) === userId
+    }
+
+    const canDeleteTeam = (team: Team) => {
+        if (canManageRoom) return true
+        if (!userId) return false
+        return getTeamCreatorId(team) === userId
     }
 
     const canRemoveSlot = (slot: Slot) => {
+        if (!slot.team_id || !userId) return false
         if (canManageRoom) return true
-        if (!userId) return false
-        const isSelf = slot.user_id === userId
-        const isManualAddedByMe = !slot.user_id && slot.added_by_user_id === userId
-        return isSelf || isManualAddedByMe
+
+        const team = sortedTeams.find(t => t.id === slot.team_id)
+        const isCreator = !!team && getTeamCreatorId(team) === userId
+
+        if (slot.user_id === userId) {
+            if (isCreator) {
+                alert('Вы записали эту команду и не можете удалить себя из нее')
+                return false
+            }
+            return true
+        }
+
+        return isCreator
     }
 
     const resetDraft = () => {
@@ -103,27 +119,18 @@ export default function TeamSignupPanel({
         resetDraft()
     }
 
-    const startTeamRegistration = () => {
-        if (!canVote) return
+    const getAvailablePlayersForTeam = (teamId: string | null, extraExcludedUserIds: string[] = []) => {
+        const currentTeamUserIds = new Set((teamId ? getTeamSlots(teamId) : []).map(s => s.user_id).filter(Boolean))
+        const excluded = new Set(extraExcludedUserIds)
 
-        const myTeamId = getUserTeamId(userId)
-        if (myTeamId) {
-            alert(ALREADY_IN_TEAM_TEXT)
-            return
-        }
-
-        const freeTeam = sortedTeams.find(team => getTeamSlots(team.id).length === 0)
-        if (!freeTeam) {
-            alert('Достигнут лимит команд')
-            return
-        }
-
-        setActiveTeamId(freeTeam.id)
-        setIsCreatingTeam(true)
-        setDraftUserIds([])
-        setDraftManualNames([])
-        setManualName('')
-        setIsTeamModalOpen(true)
+        return members.filter((member) => {
+            if (isPendingRole(member.role)) return false
+            if (!canManageRoom && member.role !== 'player') return false
+            if (excluded.has(member.user_id)) return false
+            if (currentTeamUserIds.has(member.user_id)) return false
+            const assignedTeamId = getUserTeamId(member.user_id)
+            return !assignedTeamId
+        })
     }
 
     const openTeamModal = (teamId: string) => {
@@ -135,28 +142,55 @@ export default function TeamSignupPanel({
         setIsTeamModalOpen(true)
     }
 
-    const addPlayerToTeam = async (targetUserId: string) => {
-        if (!activeTeam || !canVote || !userId) return
+    const startTeamRegistration = (teamId: string) => {
+        if (!canVote || !userId) return
 
-        const assignedTeamId = getUserTeamId(targetUserId)
-        if (assignedTeamId && assignedTeamId !== activeTeam.id) {
+        const targetTeam = sortedTeams.find(team => team.id === teamId)
+        if (!targetTeam) return
+
+        if (getTeamSlots(teamId).length > 0) {
+            openTeamModal(teamId)
+            return
+        }
+
+        const myTeamId = getUserTeamId(userId)
+        if (myTeamId && !canManageRoom) {
             alert(ALREADY_IN_TEAM_TEXT)
             return
+        }
+
+        const initialDraft: string[] = []
+        if (currentMemberRole === 'player' && !myTeamId) {
+            initialDraft.push(userId)
+        }
+
+        setActiveTeamId(teamId)
+        setIsCreatingTeam(true)
+        setDraftUserIds(initialDraft)
+        setDraftManualNames([])
+        setManualName('')
+        setIsTeamModalOpen(true)
+    }
+
+    const assignUserToTeam = async (teamId: string, targetUserId: string) => {
+        if (!userId) return false
+
+        const assignedTeamId = getUserTeamId(targetUserId)
+        if (assignedTeamId && assignedTeamId !== teamId) {
+            alert(ALREADY_IN_TEAM_TEXT)
+            return false
         }
 
         const member = members.find(m => m.user_id === targetUserId)
         if (!member || isPendingRole(member.role)) {
             alert('Можно добавить только подтвержденных участников')
-            return
+            return false
         }
 
-        if (isCreatingTeam) {
-            if (draftUserIds.includes(targetUserId)) return
-            setDraftUserIds(prev => [...prev, targetUserId])
-            return
+        if (!canManageRoom && member.role !== 'player') {
+            alert('Можно добавить только участников со статусом игрок')
+            return false
         }
-
-        if (!canEditTeam(activeTeam) && !canManageRoom) return
 
         const actorNick = currentMember?.nickname || 'Участник'
         const existingUnassigned = unassignedSlots.find(s => s.user_id === targetUserId)
@@ -165,7 +199,7 @@ export default function TeamSignupPanel({
             await supabase
                 .from('match_slots')
                 .update({
-                    team_id: activeTeam.id,
+                    team_id: teamId,
                     status: 'go',
                     added_by_user_id: userId,
                     added_by_nickname: actorNick
@@ -177,26 +211,42 @@ export default function TeamSignupPanel({
                 user_id: targetUserId,
                 nickname: member.nickname,
                 status: 'go',
-                team_id: activeTeam.id,
+                team_id: teamId,
                 added_by_user_id: userId,
                 added_by_nickname: actorNick,
                 created_at: new Date().toISOString()
             })
         }
 
+        return true
+    }
+
+    const addPlayerToTeam = async (targetUserId: string) => {
+        if (!activeTeam || !canVote || !userId) return
+
+        if (isCreatingTeam) {
+            if (draftUserIds.includes(targetUserId)) return
+            setDraftUserIds(prev => [...prev, targetUserId])
+            return
+        }
+
+        if (!canEditTeam(activeTeam)) return
+
+        const success = await assignUserToTeam(activeTeam.id, targetUserId)
+        if (!success) return
         await onRefresh()
     }
 
     const addManualToTeam = async () => {
         if (!activeTeam || !manualName.trim() || !canVote || !userId) return
 
+        if (!isCreatingTeam && !canEditTeam(activeTeam)) return
+
         if (isCreatingTeam) {
             setDraftManualNames(prev => [...prev, manualName.trim()])
             setManualName('')
             return
         }
-
-        if (!canEditTeam(activeTeam) && !canManageRoom) return
 
         const actorNick = currentMember?.nickname || 'Участник'
         const finalNickname = `${manualName.trim()} /от ${actorNick}/`
@@ -222,41 +272,67 @@ export default function TeamSignupPanel({
             return
         }
 
-        await supabase.from('match_slots').delete().eq('id', slot.id)
+        const team = sortedTeams.find(item => item.id === slot.team_id)
+        const isCreatorBeingRemoved =
+            !!team &&
+            canManageRoom &&
+            !!slot.user_id &&
+            getTeamCreatorId(team) === slot.user_id
 
+        if (isCreatorBeingRemoved && team) {
+            setCreatorRemovalCandidate({ team, slot })
+            return
+        }
+
+        await supabase.from('match_slots').delete().eq('id', slot.id)
         await onRefresh()
     }
 
     const submitCreateTeam = async () => {
-        if (!activeTeam || !userId) return
-        const actorNick = currentMember?.nickname || 'Участник'
+        if (!activeTeam || !userId || isSubmittingTeam) return
 
-        for (const targetUserId of draftUserIds) {
-            const assignedTeamId = getUserTeamId(targetUserId)
-            if (assignedTeamId && assignedTeamId !== activeTeam.id) {
-                alert(ALREADY_IN_TEAM_TEXT)
+        if (draftUserIds.length === 0 && draftManualNames.length === 0) {
+            alert('Добавьте хотя бы одного участника или игрока вручную')
+            return
+        }
+
+        setIsSubmittingTeam(true)
+        try {
+            const { data: claimRows, error: claimError } = await supabase
+                .from('match_teams')
+                .update({ created_by_user_id: userId })
+                .eq('id', activeTeam.id)
+                .is('created_by_user_id', null)
+                .select('id')
+
+            if (claimError) {
+                const lowered = claimError.message.toLowerCase()
+                if (lowered.includes('created_by_user_id')) {
+                    alert('Нужно применить SQL-миграцию для безопасной записи команд (created_by_user_id).')
+                } else {
+                    alert('Ошибка при захвате команды: ' + claimError.message)
+                }
                 return
             }
 
-            const member = members.find(m => m.user_id === targetUserId)
-            if (!member || isPendingRole(member.role)) continue
+            if (!claimRows || claimRows.length === 0) {
+                alert('Эта команда уже занята другим участником. Обновите список.')
+                await onRefresh()
+                closeTeamModal()
+                return
+            }
 
-            const existingUnassigned = unassignedSlots.find(s => s.user_id === targetUserId)
-            if (existingUnassigned) {
-                await supabase
-                    .from('match_slots')
-                    .update({
-                        team_id: activeTeam.id,
-                        status: 'go',
-                        added_by_user_id: userId,
-                        added_by_nickname: actorNick
-                    })
-                    .eq('id', existingUnassigned.id)
-            } else {
+            for (const targetUserId of draftUserIds) {
+                const success = await assignUserToTeam(activeTeam.id, targetUserId)
+                if (!success) return
+            }
+
+            const actorNick = currentMember?.nickname || 'Участник'
+            for (const rawName of draftManualNames) {
+                const finalNickname = `${rawName} /от ${actorNick}/`
                 await supabase.from('match_slots').insert({
                     match_id: matchId,
-                    user_id: targetUserId,
-                    nickname: member.nickname,
+                    nickname: finalNickname,
                     status: 'go',
                     team_id: activeTeam.id,
                     added_by_user_id: userId,
@@ -264,29 +340,23 @@ export default function TeamSignupPanel({
                     created_at: new Date().toISOString()
                 })
             }
-        }
 
-        for (const rawName of draftManualNames) {
-            const finalNickname = `${rawName} /от ${actorNick}/`
-            await supabase.from('match_slots').insert({
-                match_id: matchId,
-                nickname: finalNickname,
-                status: 'go',
-                team_id: activeTeam.id,
-                added_by_user_id: userId,
-                added_by_nickname: actorNick,
-                created_at: new Date().toISOString()
-            })
+            await onRefresh()
+            closeTeamModal()
+        } finally {
+            setIsSubmittingTeam(false)
         }
-
-        await onRefresh()
-        closeTeamModal()
     }
 
     const deleteTeamCompletely = async (team: Team) => {
-        if (!canManageRoom) return
+        if (!canDeleteTeam(team)) return
         if (!window.confirm('Удалить команду полностью?')) return
 
+        await resetTeamToEmpty(team)
+        await onRefresh()
+    }
+
+    const resetTeamToEmpty = async (team: Team) => {
         await supabase.from('match_slots').delete().eq('match_id', matchId).eq('team_id', team.id)
         await supabase
             .from('match_teams')
@@ -295,7 +365,10 @@ export default function TeamSignupPanel({
                 color_json: DEFAULT_TEAM_COLOR
             })
             .eq('id', team.id)
-        await onRefresh()
+        await supabase
+            .from('match_teams')
+            .update({ created_by_user_id: null })
+            .eq('id', team.id)
     }
 
     const joinWithoutTeam = async () => {
@@ -327,29 +400,72 @@ export default function TeamSignupPanel({
         await onRefresh()
     }
 
+    const inviteFromWithoutTeam = async (slot: Slot) => {
+        if (!slot.user_id || !userId) return
+
+        const editableTeams = sortedTeams.filter(team => canEditTeam(team) && getTeamSlots(team.id).length > 0)
+        if (editableTeams.length === 0) return
+
+        let targetTeam: Team | undefined
+        if (!canManageRoom) {
+            targetTeam = editableTeams[0]
+        } else if (editableTeams.length === 1) {
+            targetTeam = editableTeams[0]
+        } else {
+            const variants = editableTeams.map((team, index) => `${index + 1} — ${team.name}`).join('\n')
+            const raw = window.prompt(`Выберите команду для приглашения:\n${variants}`)
+            if (!raw) return
+            const idx = parseInt(raw, 10)
+            if (!Number.isInteger(idx) || idx < 1 || idx > editableTeams.length) {
+                alert('Некорректный номер команды')
+                return
+            }
+            targetTeam = editableTeams[idx - 1]
+        }
+
+        if (!targetTeam) return
+
+        if (!window.confirm('Пригласить этого игрока в команду?')) return
+
+        const success = await assignUserToTeam(targetTeam.id, slot.user_id)
+        if (!success) return
+        await onRefresh()
+    }
+
     const startEditingTeam = (team: Team) => {
-        if (!canManageRoom) return
+        if (!canEditTeam(team)) return
         setEditingTeamId(team.id)
         setTempTeamName(team.name)
         setTempTeamColor((team.color_json as TeamTitleColor) || DEFAULT_TEAM_COLOR)
     }
 
     const saveTeamMeta = async () => {
-        if (!editingTeamId || !canManageRoom) return
+        if (!editingTeamId) return
+
+        const team = sortedTeams.find(item => item.id === editingTeamId)
+        if (!team || !canEditTeam(team)) return
+
+        const payload: {
+            name: string
+            color_json?: TeamTitleColor
+        } = {
+            name: tempTeamName.trim() || 'Команда'
+        }
+
+        if (canManageRoom && hasPresetColors) {
+            payload.color_json = tempTeamColor
+        }
+
         await supabase
             .from('match_teams')
-            .update({
-                name: tempTeamName.trim() || 'Команда',
-                color_json: tempTeamColor
-            })
+            .update(payload)
             .eq('id', editingTeamId)
+
         setEditingTeamId(null)
         await onRefresh()
     }
 
-    const activeTeams = sortedTeams.filter(team => getTeamSlots(team.id).length > 0)
     const myUnassigned = unassignedSlots.some(s => s.user_id === userId)
-
     const draftMembers = draftUserIds
         .map(id => members.find(m => m.user_id === id))
         .filter((m): m is Member => !!m)
@@ -362,20 +478,25 @@ export default function TeamSignupPanel({
         <>
             <div className="grid grid-cols-[1.5fr_1fr] gap-4">
                 <div className="space-y-3">
-                    <div className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-center">
-                        <button
-                            onClick={startTeamRegistration}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase"
-                        >
-                            Записать команду
-                        </button>
-                    </div>
-
-                    {activeTeams.map((team) => {
+                    {sortedTeams.map((team) => {
                         const teamPlayers = getTeamSlots(team.id)
+                        const isRegistered = teamPlayers.length > 0
+                        const teamColor = (team.color_json as TeamTitleColor) || DEFAULT_TEAM_COLOR
                         const mainCount = Math.min(gameFormat, teamPlayers.length)
                         const reserveCount = Math.max(0, teamPlayers.length - gameFormat)
-                        const teamColor = (team.color_json as TeamTitleColor) || DEFAULT_TEAM_COLOR
+
+                        if (!isRegistered) {
+                            return (
+                                <div key={team.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-center">
+                                    <button
+                                        onClick={() => startTeamRegistration(team.id)}
+                                        className={`${teamColor.bg} ${teamColor.text} px-4 py-2 rounded-xl text-[10px] font-black uppercase border ${teamColor.bg === 'bg-white' ? 'border-black' : 'border-transparent'}`}
+                                    >
+                                        Записать команду
+                                    </button>
+                                </div>
+                            )
+                        }
 
                         return (
                             <div key={team.id} className="rounded-2xl border border-gray-200 bg-white p-4">
@@ -387,26 +508,27 @@ export default function TeamSignupPanel({
                                                 onChange={e => setTempTeamName(e.target.value)}
                                                 className="w-full bg-gray-50 rounded-xl px-3 py-2 text-xs font-black uppercase outline-none"
                                             />
-                                            <div className="flex gap-1 mt-2 flex-wrap">
-                                                {TEAM_TITLE_COLORS.map(color => (
-                                                    <button
-                                                        key={`${color.bg}-${color.text}`}
-                                                        onClick={() => setTempTeamColor(color)}
-                                                        className={`w-6 h-6 rounded-full ${color.bg} border ${
-                                                            tempTeamColor.bg === color.bg && tempTeamColor.text === color.text ? 'border-black' : 'border-transparent'
-                                                        }`}
-                                                        title={color.label}
-                                                    />
-                                                ))}
-                                            </div>
+                                            {canManageRoom && hasPresetColors && (
+                                                <div className="flex gap-1 mt-2 flex-wrap">
+                                                    {TEAM_TITLE_COLORS.map(color => (
+                                                        <button
+                                                            key={`${color.bg}-${color.text}`}
+                                                            onClick={() => setTempTeamColor(color)}
+                                                            className={`w-6 h-6 rounded-full ${color.bg} border-2 ${
+                                                                color.bg === 'bg-white'
+                                                                    ? tempTeamColor.bg === color.bg && tempTeamColor.text === color.text ? 'border-black' : 'border-gray-400'
+                                                                    : tempTeamColor.bg === color.bg && tempTeamColor.text === color.text ? 'border-black' : 'border-transparent'
+                                                            }`}
+                                                            title={color.label}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
-                                        <button
-                                            onClick={() => startEditingTeam(team)}
-                                            className={`text-left text-sm font-black uppercase px-2 py-1 rounded-lg ${teamColor.bg} ${teamColor.text}`}
-                                        >
+                                        <h3 className={`text-left text-sm font-black uppercase px-2 py-1 rounded-lg ${teamColor.bg} ${teamColor.text}`}>
                                             {team.name}
-                                        </button>
+                                        </h3>
                                     )}
 
                                     <div className="flex gap-2 items-center">
@@ -418,20 +540,30 @@ export default function TeamSignupPanel({
                                                 Ок
                                             </button>
                                         ) : (
-                                            <button
-                                                onClick={() => openTeamModal(team.id)}
-                                                className="bg-blue-600 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase"
-                                            >
-                                                Редактировать состав
-                                            </button>
+                                            canEditTeam(team) && (
+                                                <button
+                                                    onClick={() => openTeamModal(team.id)}
+                                                    className="bg-blue-600 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase"
+                                                >
+                                                    Редактировать
+                                                </button>
+                                            )
                                         )}
 
-                                        {canManageRoom && (
+                                        {canDeleteTeam(team) && (
                                             <button
                                                 onClick={() => deleteTeamCompletely(team)}
                                                 className="bg-red-100 text-red-600 px-3 py-2 rounded-lg text-[9px] font-black uppercase"
                                             >
                                                 Удалить
+                                            </button>
+                                        )}
+                                        {editingTeamId !== team.id && canEditTeam(team) && (
+                                            <button
+                                                onClick={() => startEditingTeam(team)}
+                                                className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-[9px] font-black uppercase"
+                                            >
+                                                Имя
                                             </button>
                                         )}
                                     </div>
@@ -458,17 +590,28 @@ export default function TeamSignupPanel({
                     })}
                 </div>
 
-                <div className="rounded-2xl border border-gray-200 bg-white p-4 h-fit flex flex-col">
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-col">
                     <p className="text-[10px] font-black uppercase text-gray-400 mb-3">Игроки без команды</p>
                     <div className="space-y-1">
                         {unassignedSlots.map((slot) => (
-                            <div key={slot.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-2 py-1">
+                            <div key={slot.id} className="flex items-center justify-between gap-1 bg-gray-50 rounded-lg px-2 py-1">
                                 <span className="text-[11px] font-bold truncate pr-2">{slot.nickname}</span>
-                                {(canManageRoom || slot.user_id === userId) && (
-                                    <button onClick={() => removeWithoutTeam(slot)} className="text-red-500 font-black">
-                                        ×
-                                    </button>
-                                )}
+                                <div className="flex items-center gap-1 shrink-0">
+                                    {sortedTeams.some(team => canEditTeam(team) && getTeamSlots(team.id).length > 0) && (
+                                        <button
+                                            onClick={() => inviteFromWithoutTeam(slot)}
+                                            className="bg-blue-600 text-white rounded-md w-5 h-5 text-[11px] font-black leading-none"
+                                            title="Пригласить в команду"
+                                        >
+                                            +
+                                        </button>
+                                    )}
+                                    {(canManageRoom || slot.user_id === userId) && (
+                                        <button onClick={() => removeWithoutTeam(slot)} className="text-red-500 font-black">
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         ))}
                         {unassignedSlots.length === 0 && (
@@ -478,7 +621,7 @@ export default function TeamSignupPanel({
                     <button
                         onClick={joinWithoutTeam}
                         disabled={!canVote || myUnassigned || !!getUserTeamId(userId)}
-                        className="mt-3 bg-black text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase disabled:opacity-40"
+                        className="mt-auto pt-3 bg-black text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase disabled:opacity-40"
                     >
                         Нет команды
                     </button>
@@ -501,9 +644,10 @@ export default function TeamSignupPanel({
                                 )}
                                 <button
                                     onClick={isCreatingTeam ? submitCreateTeam : closeTeamModal}
+                                    disabled={isCreatingTeam && isSubmittingTeam}
                                     className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase"
                                 >
-                                    {isCreatingTeam ? 'Создать команду' : 'Ок'}
+                                    {isCreatingTeam ? (isSubmittingTeam ? 'Сохранение...' : 'Ок') : 'Закрыть'}
                                 </button>
                             </div>
                         </div>
@@ -516,7 +660,7 @@ export default function TeamSignupPanel({
                                         <button
                                             key={member.user_id}
                                             onClick={() => addPlayerToTeam(member.user_id)}
-                                            disabled={!isCreatingTeam && !canEditTeam(activeTeam) && !canManageRoom}
+                                            disabled={!isCreatingTeam && !canEditTeam(activeTeam)}
                                             className="w-full text-left bg-gray-50 hover:bg-blue-50 px-3 py-2 rounded-lg text-[11px] font-bold disabled:opacity-40"
                                         >
                                             {member.nickname}
@@ -532,12 +676,14 @@ export default function TeamSignupPanel({
                                             {draftMembers.map((member) => (
                                                 <div key={member.user_id} className="flex items-center justify-between bg-gray-50 rounded-lg px-2 py-1">
                                                     <span className="text-[11px] font-bold truncate pr-2">{member.nickname}</span>
-                                                    <button
-                                                        onClick={() => setDraftUserIds(prev => prev.filter(id => id !== member.user_id))}
-                                                        className="text-red-500 font-black"
-                                                    >
-                                                        ×
-                                                    </button>
+                                                    {(currentMemberRole !== 'player' || member.user_id !== userId) && (
+                                                        <button
+                                                            onClick={() => setDraftUserIds(prev => prev.filter(id => id !== member.user_id))}
+                                                            className="text-red-500 font-black"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ))}
                                             {draftManualNames.map((name, index) => (
@@ -574,12 +720,43 @@ export default function TeamSignupPanel({
                                 />
                                 <button
                                     onClick={addManualToTeam}
-                                    disabled={!manualName.trim() || (!isCreatingTeam && !canEditTeam(activeTeam) && !canManageRoom)}
+                                    disabled={!manualName.trim() || (!isCreatingTeam && !canEditTeam(activeTeam))}
                                     className="w-full bg-black text-white py-3 rounded-xl text-[10px] font-black uppercase disabled:opacity-40"
                                 >
                                     Добавить вручную
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {creatorRemovalCandidate && (
+                <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm">
+                        <p className="text-sm font-black uppercase mb-3">
+                            Удалить создателя команды?
+                        </p>
+                        <p className="text-xs text-gray-600 mb-5">
+                            Если удалить этого игрока, команда будет удалена полностью. Продолжить?
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={async () => {
+                                    const teamToRemove = creatorRemovalCandidate.team
+                                    setCreatorRemovalCandidate(null)
+                                    await resetTeamToEmpty(teamToRemove)
+                                    await onRefresh()
+                                }}
+                                className="flex-1 bg-red-600 text-white py-2 rounded-xl text-[10px] font-black uppercase"
+                            >
+                                Да
+                            </button>
+                            <button
+                                onClick={() => setCreatorRemovalCandidate(null)}
+                                className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-xl text-[10px] font-black uppercase"
+                            >
+                                Отмена
+                            </button>
                         </div>
                     </div>
                 </div>

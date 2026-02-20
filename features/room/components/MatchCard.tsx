@@ -8,6 +8,7 @@ interface Props {
     goCount: number
     maxPlayers: number
     teamLimit?: number | null
+    gameFormat?: number | null
     matchType?: 'match' | 'teams'
     cost?: number | null
     costPayer?: 'player' | 'team' | null
@@ -24,6 +25,7 @@ export default function MatchCard({
     goCount, 
     maxPlayers,
     teamLimit,
+    gameFormat,
     matchType,
     cost,
     costPayer,
@@ -38,17 +40,17 @@ export default function MatchCard({
     return (
         <div className="bg-blue-600 text-white p-6 rounded-[2rem] shadow-xl relative overflow-hidden shrink-0">
             {canManageRoom && (
-    <div className="absolute top-4 right-4 flex gap-2 z-50">
+    <div className="absolute top-1.5 right-4 flex gap-2 z-50">
         <button
             onClick={onEdit}
-            className="bg-blue-700/30 hover:bg-blue-700/50 text-white/60 hover:text-white text-[10px] font-black uppercase transition-all px-4 py-2 rounded-full min-w-[80px] relative z-50"
+            className="bg-blue-700/30 hover:bg-blue-700/50 text-white/60 hover:text-white text-[9px] font-black uppercase transition-all px-3 py-1.5 rounded-full min-w-[70px] relative z-50"
             style={{ pointerEvents: 'auto' }}
         >
             ✎ Изменить
         </button>
         <button
             onClick={onDelete}
-            className="bg-red-500/30 hover:bg-red-500/50 text-white/60 hover:text-white text-[10px] font-black uppercase transition-all px-4 py-2 rounded-full min-w-[80px] relative z-50"
+            className="bg-red-500/30 hover:bg-red-500/50 text-white/60 hover:text-white text-[9px] font-black uppercase transition-all px-3 py-1.5 rounded-full min-w-[70px] relative z-50"
             style={{ pointerEvents: 'auto' }}
         >
             ✕ Удалить
@@ -58,7 +60,7 @@ export default function MatchCard({
             
             <p className="text-base font-black uppercase mb-1 truncate">{address}</p>
             {typeof cost === 'number' && (
-                <p className="text-[10px] font-black uppercase opacity-60 mb-1 tracking-widest">{cost} ₽ {costPayer === 'team' ? '/ с команды' : '/ с игрока'}</p>
+                <p className="text-[10px] font-black uppercase opacity-60 mb-1 tracking-widest text-right">{cost} ₽ {costPayer === 'team' ? '/ с команды' : '/ с игрока'}</p>
             )}
             <p className="text-xl font-bold uppercase mb-4">{formattedDate}</p>
             <div className="flex gap-6 text-sm font-bold">
@@ -71,7 +73,12 @@ export default function MatchCard({
                     {endTime?.slice(0, 5) || '—'}
                 </div>
                 <div className="ml-auto text-right text-blue-200">
-                    {matchType === 'teams' ? `${goCount}/${teamLimit || '—'} команд` : `${goCount}/${maxPlayers}`}
+                    <div>{matchType === 'teams' ? `${goCount}/${teamLimit || '—'} команд` : `${goCount}/${maxPlayers}`}</div>
+                    {matchType === 'teams' && (
+                        <div className="text-[10px] text-blue-100 mt-1">
+                            Формат: {(gameFormat || 0)}X{(gameFormat || 0)} (+ замены)
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

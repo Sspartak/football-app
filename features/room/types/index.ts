@@ -40,6 +40,8 @@ export interface Slot {
     user_id: string | null
     nickname: string
     status: 'go' | 'reserve' | 'not_go'
+    desire?: 'going' | 'reserve' | 'not_going' | null
+    reserve_position?: number | null
     team_id?: string | null
     added_by_user_id?: string | null
     added_by_nickname?: string | null
@@ -52,6 +54,7 @@ export interface Team {
     name: string
     players: Slot[]
     display_order?: number
+    created_by_user_id?: string | null
     captain_user_id?: string | null
     color_json?: {
         text: string

@@ -14,6 +14,7 @@ import MembersModal from './components/modals/MembersModal'
 import PendingModal from './components/modals/PendingModal'
 import MatchFormModal from './components/modals/MatchFormModal'
 import TeamSignupPanel from './components/TeamSignupPanel'
+import { TeamTitleColor } from '@/lib/constants/teamColors'
 import {
     canApprovePendingMember,
     canDeleteMember,
@@ -27,6 +28,7 @@ import {
     isApprovedMember,
     isPendingRole,
 } from '@/permissions'
+import { votingController } from '@/src/modules/voting/controllers/voting.controller'
 
 export default function RoomPage() {
     const { id: roomId } = useParams()
@@ -59,6 +61,7 @@ export default function RoomPage() {
         max: number
         teamLimit: number
         gameFormat: number
+        teamColors: TeamTitleColor[]
         cost?: number | ''
         costPayer?: 'player' | 'team'
     }
@@ -72,6 +75,7 @@ export default function RoomPage() {
         max: 10,
         teamLimit: 2,
         gameFormat: 5,
+        teamColors: [],
         cost: '',
         costPayer: 'player'
     })
@@ -151,6 +155,11 @@ export default function RoomPage() {
                     max: latestMatch.max_players || 10,
                     teamLimit: latestMatch.team_limit || Math.max(2, fetchedTeams.length || 2),
                     gameFormat: latestMatch.game_format || 5,
+                    teamColors: isTeamsMatch
+                        ? fetchedTeams
+                            .map(team => team.color_json as TeamTitleColor | undefined)
+                            .filter((color): color is TeamTitleColor => !!color)
+                        : [],
                     cost: latestMatch.cost ?? '',
                     costPayer: latestMatch.cost_payer || 'player'
                 })
@@ -210,75 +219,20 @@ export default function RoomPage() {
     // --- Обработчики ---
     const handleVote = async (status: 'go' | 'reserve' | 'not_go') => {
         if (!match || !userId || !canVote) return
-
-        const mySlot = slots.find(s => s.user_id === userId)
         const myNick = members.find(m => m.user_id === userId)?.nickname || 'Игрок'
-        
-        const { data: currentSlots } = await supabase
-            .from('match_slots')
-            .select('*')
-            .eq('match_id', match.id)
-            .eq('status', 'go')
-        
-        const currentGoCount = currentSlots?.length || 0
-        let finalStatus = status
-
-        if (status === 'go') {
-            if (mySlot?.status === 'go') {
-                finalStatus = 'go'
-            } else if (currentGoCount >= match.max_players) {
-                finalStatus = 'reserve'
-            }
-        }
-
-        if (mySlot?.status === 'reserve' && status === 'go' && currentGoCount >= match.max_players) return
-        if (mySlot?.status === 'reserve' && status === 'reserve') return
-        if (mySlot?.status === 'not_go' && status === 'not_go') return
-
-        const now = new Date().toISOString()
+        const mySlot = slots.find(s => s.user_id === userId)
 
         try {
-            if (mySlot) {
-                await supabase
-                    .from('match_slots')
-                    .update({ status: finalStatus, created_at: now })
-                    .eq('id', mySlot.id)
+            if (status === 'go') {
+                await votingController.pressGoing({ matchId: match.id, userId, nickname: myNick })
+            } else if (status === 'reserve') {
+                await votingController.pressReserve({ matchId: match.id, userId, nickname: myNick })
             } else {
-                await supabase
-                    .from('match_slots')
-                    .insert({
-                        match_id: match.id,
-                        user_id: userId,
-                        nickname: myNick,
-                        status: finalStatus,
-                        created_at: now
-                    })
-            }
-
-            if (mySlot?.status === 'go' && finalStatus !== 'go') {
-                const { data: freshSlots } = await supabase
-                    .from('match_slots')
-                    .select('*')
-                    .eq('match_id', match.id)
-                    .order('created_at', { ascending: true })
-
-                if (freshSlots) {
-                    const goCountAfter = freshSlots.filter(s => s.status === 'go').length
-                    const freeSpots = match.max_players - goCountAfter
-
-                    if (freeSpots > 0) {
-                        const reservePlayers = freshSlots
-                            .filter(s => s.status === 'reserve')
-                            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-
-                        for (let i = 0; i < Math.min(freeSpots, reservePlayers.length); i++) {
-                            await supabase
-                                .from('match_slots')
-                                .update({ status: 'go', created_at: new Date().toISOString() })
-                                .eq('id', reservePlayers[i].id)
-                        }
-                    }
+                if (mySlot?.status === 'reserve' && (mySlot.reserve_position || 0) > 0) {
+                    const confirmed = window.confirm('Ваше место в резерве будет утеряно')
+                    if (!confirmed) return
                 }
+                await votingController.pressNotGoing({ matchId: match.id, userId, nickname: myNick })
             }
         } catch (error) {
             console.error('Ошибка при голосовании:', error)
@@ -311,15 +265,21 @@ export default function RoomPage() {
         }
         
         try {
-            const { error } = await supabase.from('match_slots').delete().eq('id', slotId)
-            
-            if (error) {
-                console.error('Ошибка удаления:', error)
-                alert('Ошибка при удалении: ' + error.message)
-                return
+            if (slot.user_id) {
+                if (slot.user_id === userId && slot.status === 'reserve' && (slot.reserve_position || 0) > 0) {
+                    const confirmed = window.confirm('Ваше место в резерве будет утеряно')
+                    if (!confirmed) return
+                }
+                await votingController.removeUser({ matchId: slot.match_id, userId: slot.user_id })
+            } else {
+                const { error } = await supabase.from('match_slots').delete().eq('id', slotId)
+                if (error) {
+                    console.error('Ошибка удаления:', error)
+                    alert('Ошибка при удалении: ' + error.message)
+                    return
+                }
             }
-            
-            // Обновляем данные после успешного удаления
+
             await fetchData()
         } catch (err) {
             console.error('Неожиданная ошибка:', err)
@@ -448,6 +408,7 @@ export default function RoomPage() {
             max: 10,
             teamLimit: 2,
             gameFormat: 5,
+            teamColors: [],
             cost: '',
             costPayer: 'player'
         })
@@ -467,6 +428,12 @@ export default function RoomPage() {
             max: match.max_players || 10,
             teamLimit: match.team_limit || Math.max(2, teams.length || 2),
             gameFormat: match.game_format || 5,
+            teamColors: isTeamsMatch
+                ? [...teams]
+                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                    .map(team => team.color_json as TeamTitleColor | undefined)
+                    .filter((color): color is TeamTitleColor => !!color)
+                : [],
             cost: match.cost ?? '',
             costPayer: match.cost_payer || 'player'
         })
@@ -510,6 +477,10 @@ export default function RoomPage() {
             }
             if (matchFormData.gameFormat < 1) {
                 alert('Формат игры должен быть больше 0')
+                return
+            }
+            if (matchFormData.teamColors.length > 0 && matchFormData.teamColors.length !== matchFormData.teamLimit) {
+                alert('Если вы выбрали цвета, их количество должно совпадать с лимитом команд.')
                 return
             }
         }
@@ -575,11 +546,15 @@ export default function RoomPage() {
                         match_id: targetMatchId,
                         name: `Команда ${index + 1}`,
                         display_order: index + 1,
-                        color_json: { text: 'text-black', bg: 'bg-white', label: 'Белый' }
+                        color_json: matchFormData.teamColors[index] || { text: 'text-black', bg: 'bg-white', label: 'Белый' }
                     }))
 
                     const { error: insertTeamsError } = await supabase.from('match_teams').insert(teamsPayload)
                     if (insertTeamsError) {
+                        // Avoid leaving an orphan teams-match if team templates cannot be created by RLS.
+                        if (!editingExistingMatch && targetMatchId) {
+                            await supabase.from('matches').delete().eq('id', targetMatchId)
+                        }
                         alert('Ошибка при создании команд: ' + insertTeamsError.message)
                         return
                     }
@@ -690,6 +665,7 @@ export default function RoomPage() {
                                     goCount={match.match_type === 'teams' ? registeredTeamsCount : goPlayers.length}
                                     maxPlayers={match.max_players}
                                     teamLimit={match.team_limit}
+                                    gameFormat={match.game_format}
                                     matchType={match.match_type}
                                     cost={match.cost}
                                     costPayer={match.cost_payer}
