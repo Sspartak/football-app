@@ -1,7 +1,5 @@
 'use client'
 
-import { TEAM_TITLE_COLORS, TeamTitleColor } from '@/lib/constants/teamColors'
-
 type MatchFormState = {
     matchType: 'match' | 'teams'
     address: string
@@ -11,7 +9,6 @@ type MatchFormState = {
     max: number
     teamLimit: number
     gameFormat: number
-    teamColors: TeamTitleColor[]
     cost?: number | ''
     costPayer?: 'player' | 'team'
 }
@@ -33,27 +30,6 @@ export default function MatchFormModal({ isOpen, onClose, formData, setFormData,
     }
     
     console.log('MatchFormModal OPEN')
-
-    const toggleTeamColor = (color: TeamTitleColor) => {
-        const exists = formData.teamColors.some(
-            selected => selected.bg === color.bg && selected.text === color.text && selected.label === color.label
-        )
-
-        if (exists) {
-            setFormData({
-                ...formData,
-                teamColors: formData.teamColors.filter(
-                    selected => !(selected.bg === color.bg && selected.text === color.text && selected.label === color.label)
-                )
-            })
-            return
-        }
-
-        setFormData({
-            ...formData,
-            teamColors: [...formData.teamColors, color]
-        })
-    }
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -159,39 +135,6 @@ export default function MatchFormModal({ isOpen, onClose, formData, setFormData,
                             className="w-full bg-gray-50 p-5 rounded-3xl text-sm font-bold outline-none"
                         />
                     </div>
-                    {formData.matchType === 'teams' && (
-                        <div>
-                            <label className="text-[10px] font-black uppercase text-gray-400 ml-3 mb-1.5 block tracking-widest">
-                                Цвета команд (необязательно)
-                            </label>
-                            <p className="text-[10px] text-gray-500 ml-3 mb-2">
-                                Если выбран хотя бы один цвет, их количество должно совпадать с лимитом команд.
-                            </p>
-                            <div className="grid grid-cols-5 gap-2">
-                                {TEAM_TITLE_COLORS.map((color) => {
-                                    const isSelected = formData.teamColors.some(
-                                        selected => selected.bg === color.bg && selected.text === color.text && selected.label === color.label
-                                    )
-
-                                    return (
-                                        <button
-                                            key={`${color.bg}-${color.text}-${color.label}`}
-                                            type="button"
-                                            onClick={() => toggleTeamColor(color)}
-                                            className={`h-8 rounded-lg ${color.bg} ${color.text} border-2 ${
-                                                color.bg === 'bg-white'
-                                                    ? isSelected ? 'border-black' : 'border-gray-400'
-                                                    : isSelected ? 'border-black' : 'border-transparent'
-                                            }`}
-                                            title={color.label}
-                                        >
-                                            {isSelected ? '✓' : ''}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )}
                     <div>
                         <label className="text-[10px] font-black uppercase text-gray-400 ml-3 mb-1.5 block tracking-widest">
                             Стоимость (необязательно)

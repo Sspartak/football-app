@@ -14,7 +14,6 @@ import MembersModal from './components/modals/MembersModal'
 import PendingModal from './components/modals/PendingModal'
 import MatchFormModal from './components/modals/MatchFormModal'
 import TeamSignupPanel from './components/TeamSignupPanel'
-import { TeamTitleColor } from '@/lib/constants/teamColors'
 import {
     canApprovePendingMember,
     canDeleteMember,
@@ -61,7 +60,6 @@ export default function RoomPage() {
         max: number
         teamLimit: number
         gameFormat: number
-        teamColors: TeamTitleColor[]
         cost?: number | ''
         costPayer?: 'player' | 'team'
     }
@@ -75,7 +73,6 @@ export default function RoomPage() {
         max: 10,
         teamLimit: 2,
         gameFormat: 5,
-        teamColors: [],
         cost: '',
         costPayer: 'player'
     })
@@ -155,11 +152,6 @@ export default function RoomPage() {
                     max: latestMatch.max_players || 10,
                     teamLimit: latestMatch.team_limit || Math.max(2, fetchedTeams.length || 2),
                     gameFormat: latestMatch.game_format || 5,
-                    teamColors: isTeamsMatch
-                        ? fetchedTeams
-                            .map(team => team.color_json as TeamTitleColor | undefined)
-                            .filter((color): color is TeamTitleColor => !!color)
-                        : [],
                     cost: latestMatch.cost ?? '',
                     costPayer: latestMatch.cost_payer || 'player'
                 })
@@ -214,6 +206,7 @@ export default function RoomPage() {
     const goPlayers = slots.filter(s => s.status === 'go')
     const reservePlayers = slots.filter(s => s.status === 'reserve')
     const notGoPlayers = slots.filter(s => s.status === 'not_go')
+    const myVoteSlot = slots.find(s => s.user_id === userId) || null
     const registeredTeamsCount = teams.filter(team => slots.some(s => s.status === 'go' && s.team_id === team.id)).length
 
     // --- Обработчики ---
@@ -265,25 +258,38 @@ export default function RoomPage() {
         }
         
         try {
-            if (slot.user_id) {
-                if (slot.user_id === userId && slot.status === 'reserve' && (slot.reserve_position || 0) > 0) {
-                    const confirmed = window.confirm('Ваше место в резерве будет утеряно')
-                    if (!confirmed) return
-                }
-                await votingController.removeUser({ matchId: slot.match_id, userId: slot.user_id })
-            } else {
-                const { error } = await supabase.from('match_slots').delete().eq('id', slotId)
-                if (error) {
-                    console.error('Ошибка удаления:', error)
-                    alert('Ошибка при удалении: ' + error.message)
-                    return
-                }
+            if (
+                slot.user_id === userId &&
+                slot.status === 'reserve' &&
+                (slot.reserve_position || 0) > 0
+            ) {
+                const confirmed = window.confirm('Ваше место в резерве будет утеряно')
+                if (!confirmed) return
             }
+
+            await votingController.removeSlot({ slotId })
 
             await fetchData()
         } catch (err) {
             console.error('Неожиданная ошибка:', err)
             alert('Произошла ошибка при удалении')
+        }
+    }
+
+    const cancelMyVote = async () => {
+        if (!match || !userId || !myVoteSlot) return
+
+        if (myVoteSlot.status === 'reserve' && (myVoteSlot.reserve_position || 0) > 0) {
+            const confirmed = window.confirm('Ваше место в резерве будет утеряно')
+            if (!confirmed) return
+        }
+
+        try {
+            await votingController.removeUser({ matchId: match.id, userId })
+            await fetchData()
+        } catch (error) {
+            console.error('Ошибка отмены голоса:', error)
+            alert('Не удалось отменить голос')
         }
     }
 
@@ -408,7 +414,6 @@ export default function RoomPage() {
             max: 10,
             teamLimit: 2,
             gameFormat: 5,
-            teamColors: [],
             cost: '',
             costPayer: 'player'
         })
@@ -428,12 +433,6 @@ export default function RoomPage() {
             max: match.max_players || 10,
             teamLimit: match.team_limit || Math.max(2, teams.length || 2),
             gameFormat: match.game_format || 5,
-            teamColors: isTeamsMatch
-                ? [...teams]
-                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                    .map(team => team.color_json as TeamTitleColor | undefined)
-                    .filter((color): color is TeamTitleColor => !!color)
-                : [],
             cost: match.cost ?? '',
             costPayer: match.cost_payer || 'player'
         })
@@ -477,10 +476,6 @@ export default function RoomPage() {
             }
             if (matchFormData.gameFormat < 1) {
                 alert('Формат игры должен быть больше 0')
-                return
-            }
-            if (matchFormData.teamColors.length > 0 && matchFormData.teamColors.length !== matchFormData.teamLimit) {
-                alert('Если вы выбрали цвета, их количество должно совпадать с лимитом команд.')
                 return
             }
         }
@@ -546,7 +541,7 @@ export default function RoomPage() {
                         match_id: targetMatchId,
                         name: `Команда ${index + 1}`,
                         display_order: index + 1,
-                        color_json: matchFormData.teamColors[index] || { text: 'text-black', bg: 'bg-white', label: 'Белый' }
+                        color_json: { text: 'text-black', bg: 'bg-white', label: 'Белый' }
                     }))
 
                     const { error: insertTeamsError } = await supabase.from('match_teams').insert(teamsPayload)
@@ -710,7 +705,9 @@ export default function RoomPage() {
                                             canManageRoom={canManageRoom}
                                             canVote={canVote}
                                             maxPlayers={match.max_players}
+                                            hasMyVote={!!myVoteSlot}
                                             onVote={handleVote}
+                                            onCancelVote={cancelMyVote}
                                             onDeleteSlot={deleteSlot}
                                             onAddManualPlayer={addManualPlayer}
                                             manualName={manualName}

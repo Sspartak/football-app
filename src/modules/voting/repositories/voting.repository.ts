@@ -36,6 +36,17 @@ const getUserSlot = async (matchId: string, userId: string) => {
   return (data || null) as VotingSlotRecord | null
 }
 
+const getSlotById = async (slotId: string) => {
+  const { data, error } = await supabase
+    .from('match_slots')
+    .select('id, match_id, user_id, nickname, status, desire, reserve_position, created_at')
+    .eq('id', slotId)
+    .maybeSingle()
+
+  if (error) throw error
+  return (data || null) as VotingSlotRecord | null
+}
+
 const upsertUserDesire = async (params: {
   matchId: string
   userId: string
@@ -86,6 +97,11 @@ const removeUserSlot = async (matchId: string, userId: string) => {
   if (error) throw error
 }
 
+const removeSlotById = async (slotId: string) => {
+  const { error } = await supabase.from('match_slots').delete().eq('id', slotId)
+  if (error) throw error
+}
+
 const updateFullLimitAchieved = async (matchId: string, value: boolean) => {
   const { error } = await supabase
     .from('matches')
@@ -98,8 +114,10 @@ export const votingRepository = {
   getMatchState,
   getSlots,
   getUserSlot,
+  getSlotById,
   upsertUserDesire,
   updateSlotState,
   removeUserSlot,
+  removeSlotById,
   updateFullLimitAchieved,
 }

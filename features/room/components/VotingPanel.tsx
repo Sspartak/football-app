@@ -11,7 +11,9 @@ interface Props {
     canManageRoom: boolean
     canVote: boolean
     maxPlayers: number
+    hasMyVote: boolean
     onVote: (status: 'go' | 'reserve' | 'not_go') => void
+    onCancelVote: () => void
     onDeleteSlot: (slotId: string) => void
     onAddManualPlayer: () => void
     manualName: string
@@ -27,7 +29,9 @@ export default function VotingPanel({
     canManageRoom,
     canVote,
     maxPlayers,
+    hasMyVote,
     onVote,
+    onCancelVote,
     onDeleteSlot,
     onAddManualPlayer,
     manualName,
@@ -59,7 +63,7 @@ export default function VotingPanel({
                             ))}
                         </div>
                     </div>
-                    {canVote && (
+                    {canVote && !hasMyVote && (
                         <button
                             onClick={() => onVote('go')}
                             className="w-full bg-green-500 text-white py-4 rounded-2xl text-[9px] font-black uppercase shadow-lg active:scale-95 transition-all"
@@ -91,7 +95,7 @@ export default function VotingPanel({
                             ))}
                         </div>
                     </div>
-                    {canVote && (
+                    {canVote && !hasMyVote && (
                         <button
                             onClick={() => onVote('reserve')}
                             className="w-full bg-orange-500 text-white py-4 rounded-2xl text-[9px] font-black uppercase shadow-lg active:scale-95 transition-all"
@@ -123,12 +127,20 @@ export default function VotingPanel({
                             ))}
                         </div>
                     </div>
-                    {canVote && (
+                    {canVote && !hasMyVote && (
                         <button
                             onClick={() => onVote('not_go')}
                             className="w-full bg-white border-2 border-gray-200 text-gray-400 py-4 rounded-2xl text-[9px] font-black uppercase active:scale-95"
                         >
                             Не иду
+                        </button>
+                    )}
+                    {canVote && hasMyVote && (
+                        <button
+                            onClick={onCancelVote}
+                            className="w-full bg-red-50 border-2 border-red-200 text-red-600 py-4 rounded-2xl text-[9px] font-black uppercase active:scale-95"
+                        >
+                            Отменить голос
                         </button>
                     )}
                 </div>
